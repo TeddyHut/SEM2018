@@ -1,0 +1,6 @@
+[submodule "c99-snprintf"]
+	path = c99-snprintf
+	url = https://github.com/weiss/c99-snprintf.git
+[submodule "sem_main/c99-snprintf"]
+	path = sem_main/c99-snprintf
+	url = https://github.com/weiss/c99-snprintf.git

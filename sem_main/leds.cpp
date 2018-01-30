@@ -8,19 +8,21 @@
 #include "leds.h"
 #include <port.h>
 
-LEDManager::LEDManager(LED &led) : FeedbackManager<LED>(led)
-{
-}
-
 void PortLED::setLEDState(bool const state)
 {
 	port_pin_set_output_level(pin, state);
 }
 
- PortLED::PortLED(uint8_t const pin) : pin(pin)
+void PortLED::init(uint8_t const pin)
 {
+	this->pin = pin;
 	port_config config;
 	port_get_config_defaults(&config);
 	config.direction = PORT_PIN_DIR_OUTPUT;
 	port_pin_set_config(pin, &config);
+}
+
+void LEDManager::init(LED *const led)
+{
+	FeedbackManager<LED>::init(led, config::ledmanager::sequenceSqueueSize);
 }

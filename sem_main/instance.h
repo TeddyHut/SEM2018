@@ -12,6 +12,7 @@
 #include "lcd.h"
 #include "leds.h"
 #include "spimanager.h"
+#include "gpioinput.h"
 
 namespace runtime {
 	void init();
@@ -27,4 +28,5 @@ namespace runtime {
 	extern LEDManager		*greenLEDmanager;
 	extern LEDManager		*redLEDmanager;
 	extern LEDManager		*vbLEDmanager;
+	extern GPIOPin			*opPresence;
 }

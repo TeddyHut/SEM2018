@@ -28,7 +28,7 @@ public:
 //Manages running the buzzers tones
 class BuzzerManager : public FeedbackManager<Buzzer> {
 public:
-	BuzzerManager(Buzzer &buzzer);
+	void init(Buzzer *const buzzer);
 protected:
 	void cleanup() override;
 };
@@ -37,7 +37,7 @@ class Buzzer0 : public Buzzer {
 public:
 	void setState(bool const state) override;
 
-	Buzzer0();
+	void init();
 private:
 	tc_module instance;
 };

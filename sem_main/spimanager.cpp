@@ -17,11 +17,9 @@ void SPIManager::addJob(Job const &job)
 	}
 }
 
-SPIManager::SPIManager()
+void SPIManager::init()
 {
 	if((que_pendingJobs = xQueueCreate(config::spimanager::pendingQueueSize, sizeof(Job))) == NULL)
-		debugbreak();
-	if((sem_startup = xSemaphoreCreateBinary()) == NULL)
 		debugbreak();
 	if(xTaskCreate(taskFunction, config::spimanager::taskName, config::spimanager::taskStackDepth, this, config::spimanager::taskPriority, &task) != pdPASS)
 		debugbreak();
@@ -34,7 +32,7 @@ void SPIManager::taskFunction(void *spimanager)
 
 void SPIManager::task_main()
 {
-	xSemaphoreTake(sem_startup, portMAX_DELAY);
+	ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 	while(true) {
 		Job job;
 		xQueueReceive(que_pendingJobs, &job, portMAX_DELAY);
@@ -47,8 +45,9 @@ void SPIManager::task_main()
 	}
 }
 
-SPIManager0::SPIManager0()
+void SPIManager0::init()
 {
+	SPIManager::init();
 	spi_config config;
 	spi_get_config_defaults(&config);
 	config.character_size = SPI_CHARACTER_SIZE_8BIT;
@@ -68,5 +67,5 @@ SPIManager0::SPIManager0()
 	config.transfer_mode = SPI_TRANSFER_MODE_0;
 	spi_init(&spi_instance, SERCOM3, &config);
 	spi_enable(&spi_instance);
-	xSemaphoreGive(sem_startup);
+	xTaskNotifyGive(task);
 }

@@ -8,9 +8,9 @@
 #pragma once
 
 #include <FreeRTOS.h>
+#include <semphr.h>
 #include <timers.h>
 #include <bitset>
-#include <string>
 #include <memory>
 #include "config.h"
 #include "bms.h"
@@ -20,40 +20,44 @@
 namespace Run {
 	struct Input {
 		//Time in seconds since start of the operation
-		double time;
+		float time = 0;
 		//BMS Data
 		BMS::Data bms0data;
 		BMS::Data bms1data;
+		//Total voltage of both batteries
+		float voltage = 0;
 		//Duty cycle (0-1) of motor0
-		float motor0DutyCycle;
+		float motor0DutyCycle = 0;
 		//Duty cycle (0-1) of motor1
-		float motor1DutyCycle;
+		float motor1DutyCycle = 0;
 		//Position (-180-180) of servo0
-		float servo0Position;
+		float servo0Position = config::run::servo0restposition;
 		//Position (-180-180) of servo1
-		float servo1Position;
+		float servo1Position = config::run::servo1restposition;
 		//Speed of motor0 (teeth per second)
-		float motor0Speed;
+		float motor0Speed = 0;
 		//Speed of motor1 (teeth per second)
-		float motor1Speed;
+		float motor1Speed = 0;
 		//Speed of drive shaft (teeth per second)
-		float driveSpeed;
+		float driveSpeed = 0;
 		//Speed of vehicle (m/s)
-		float vehicleSpeed;
+		float vehicleSpeed = 0;
 		//Current going through motor0 (A)
-		float motor0Current;
+		float motor0Current = 0;
 		//Current going through motor1 (A)
-		float motor1Current;
+		float motor1Current = 0;
 		//Total energy usage of motor0 (W/h)
-		float motor0EnergyUsage;
+		float motor0EnergyUsage = 0;
 		//Total energy usage of motor1 (W/h)
-		float motor1EnergyUsage;
+		float motor1EnergyUsage = 0;
 		//Total energy usage overall (W/h)
-		float totalEnergyUsage;
+		float totalEnergyUsage = 0;
 		//The total distance covered
-		float distance;
+		float distance = 0;
 		//The state of the operator presence button
-		bool opState;
+		bool opState = false;
+		//TO ADD:
+		//Accelerometer data, information about I2C voltage/current sensors
 	};
 	
 	struct Output {
@@ -75,7 +79,7 @@ namespace Run {
 
 	class DisplayLine {
 	public:
-		virtual std::string get_text(Input const &input) = 0;
+		virtual void get_text(char str[], Input const &input) = 0;
 		virtual ~DisplayLine() = default;
 	};
 
@@ -94,13 +98,13 @@ namespace Run {
 	//Displays the startup prompt for top line
 	class DL_Idle_Top : public DisplayLine {
 	public:
-		std::string get_text(Input const &input);
+		void get_text(char str[], Input const &input);
 	};
 
 	//Displays battery statistics
 	class DL_Battery : public DisplayLine, public TimerUpdate {
 	public:
-		std::string get_text(Input const &input);
+		void get_text(char str[], Input const &input);
 	protected:
 		void cycle() override;
 		enum class Cycle {
@@ -108,26 +112,26 @@ namespace Run {
 			Current,
 			AvgCellVoltage,
 			_size,
-		} curcycle;
+		} curcycle = Cycle::Voltage;
 	};
 
 	//Displays current vehicle speed and total energy usage. Switches to total time. During normal circumstances always on the top.
 	class DL_SpeedEnergy : public DisplayLine, public TimerUpdate {
 	public:
-		std::string get_text(Input const &input);
+		void get_text(char str[], Input const &input);
 	protected:
 		void cycle() override;
 		enum class Cycle {
 			SpeedEnergy = 0,
 			Time,
 			_size,
-		} curcycle;
+		} curcycle = Cycle::SpeedEnergy;
 	};
 
 	//Alternates between ramping statistics (motor current usages, duty cycle, ramping speed)
 	class DL_Ramping : public DisplayLine, public TimerUpdate {
 	public:
-		std::string get_text(Input const &input);
+		void get_text(char str[], Input const &input);
 	protected:
 		void cycle() override;
 		enum class Cycle {
@@ -135,13 +139,13 @@ namespace Run {
 			DutyCycle,
 			Rampspeed,
 			_size,
-		} curcycle;
+		} curcycle = Cycle::MotorCurrent;
 	};
 
 	//Alternates between coasting statistics (distance traveled, time coasting, battery voltages)
 	class DL_Coasting : public DisplayLine, public TimerUpdate {
 	public:
-		std::string get_text(Input const &input);
+		void get_text(char str[], Input const &input);
 	protected:
 		void cycle() override;
 		enum class Cycle {
@@ -149,7 +153,7 @@ namespace Run {
 			CoastTime,
 			BatteryVoltage,
 			_size,
-		} curcycle;
+		} curcycle = Cycle::Distance;
 		//Used to workout coasting time
 		bool firstGetText = true;
 		float starttime;
@@ -157,26 +161,40 @@ namespace Run {
 
 	struct Display {
 		//The current displayline used for the top line
-		std::unique_ptr<DisplayLine, decltype(deleter_free)> topline;
+		std::unique_ptr<DisplayLine, deleter_free<DisplayLine>> topline;
 		//Display line used for the bottom line
-		std::unique_ptr<DisplayLine, decltype(deleter_free)> bottomline;
+		std::unique_ptr<DisplayLine, deleter_free<DisplayLine>> bottomline;
+		
+		void printDisplay(Input const &input) const;
 	};
 
 	class Task {
 	public:
+		enum class Identity {
+			None,
+			Idle,
+			Startup,
+			Engage,
+			Disengage,
+			Coast,
+			CoastRamp,
+			SpeedMatch,
+			OPCheck,
+			BatteryCheck,
+			MotorCheck,
+			ADPControl,
+		} identity = Identity::None;
 		virtual Output update(Input const &input) = 0;
 		virtual Task* complete(Input const &input) = 0;
 		virtual void displayUpdate(Display &disp);
+		Task(Identity const id = Identity::None);
 		virtual ~Task() = default;
 	};
-
-	//Expected normal run task order:
-	//Idle -> Engage -> Startup -> Disengage -> Coast -> SpeedMatch -> Engage -> CoastRamp -> Disengage -> Coast ...
-
 	//Desc: Waits until the OP button is pressed, and then engages motors
 	//NextTast: Engage(input, Both, Startup)
 	class Idle : public Task {
 	public:
+		Idle();
 		Output update(Input const &input) override;
 		Task *complete(Input const &input) override;
 		void displayUpdate(Display &disp) override;
@@ -201,7 +219,8 @@ namespace Run {
 		Task *complete(Input const &input) override;
 		Engage(Input const &input, Servo const servo, PostTask const post);
 	private:
-		ValueMatch::Linear<float, double> f;
+		ValueMatch::Linear<float, float> f0;
+		ValueMatch::Linear<float, float> f1;
 		Servo servo;
 		PostTask post;
 	};
@@ -219,7 +238,8 @@ namespace Run {
 		Task *complete(Input const &input) override;
 		Disengage(Input const &input, Servo const servo);
 	private:
-		ValueMatch::Linear<float, double> f;
+		ValueMatch::Linear<float, float> f0;
+		ValueMatch::Linear<float, float> f1;
 		Servo servo;
 	};
 
@@ -232,13 +252,14 @@ namespace Run {
 		void displayUpdate(Display &disp) override;
 		Startup(Input const &input);
 	private:
-		ValueMatch::Linear<float, double> f;
+		ValueMatch::Linear<float, float> f;
 	};
 
 	//Desc: Waits until speed is less than or equal to config::minspeed
 	//NextTask: SpeedMatch
 	class Coast : public Task {
 	public:
+		Coast();
 		Output update(Input const &input) override;
 		Task *complete(Input const &input) override;
 		void displayUpdate(Display &disp) override;
@@ -248,12 +269,13 @@ namespace Run {
 	//NextTask: Disengage(Servo0)
 	class CoastRamp : public Task {
 	public:
+		CoastRamp();
 		Output update(Input const &input) override;
 		Task *complete(Input const &input) override;
 		void displayUpdate(Display &disp) override;
 		CoastRamp(Input const &input);
 	private:
-		ValueMatch::Linear<float, double> f;
+		ValueMatch::Linear<float, float> f;
 	};
 
 	//Matches the speed of motor0 to the speed of the drive shaft (from 0 to 1 over time config::matchramptime), within config::errorFactor. Then sets to motor duty cycle to zero
@@ -262,9 +284,9 @@ namespace Run {
 	public:
 		Output update(Input const &input) override;
 		Task *complete(Input const &input) override;
-		SpeedMatch(Input const &value);
+		SpeedMatch(Input const &input);
 	private:
-		ValueMatch::Linear<float, double> f;
+		ValueMatch::Linear<float, float> f;
 	};
 
 	//---Non funcitonality tasks---
@@ -272,8 +294,11 @@ namespace Run {
 	public:
 		Output update(Input const &input) override;
 		Task *complete(Input const &input) override;
+		OPCheck();
 	private:
+		SemaphoreHandle_t sem_buzzerComplete;
 		bool previousOPState = false;
+		bool buzzerInQueue = false;
 	};
 	
 	//Checks battery voltage and alerts driver if battery voltage is getting low

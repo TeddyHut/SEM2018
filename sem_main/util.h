@@ -14,13 +14,24 @@
 #include <type_traits>
 #include <FreeRTOS.h>
 #include <task.h>
+#include <semphr.h>
 #include <queue.h>
 #include "config.h"
 
-auto deleter_free  = [](auto p){
-	using p_t = std::remove_pointer_t<decltype(p)>;
-	p->~p_t();
-	std::free(p);
+extern "C" {
+//int rpl_vsnprintf(char *, size_t, const char *, va_list);
+int rpl_snprintf(char *, size_t, const char *, ...) __attribute__((format(printf, 3, 4)));
+//int rpl_vasprintf(char **, const char *, va_list);
+//int rpl_asprintf(char **, const char *, ...);
+}
+
+template <typename T>
+class deleter_free {
+public:
+	void operator() (T *const p) const {
+		p->~T();
+		vPortFree(p);
+	}
 };
 
 constexpr void throwIfTrue(bool const p, char const *const str) {
@@ -53,17 +64,33 @@ template <typename T, typename Sequence_t = std::function<void (T &)>>
 class FeedbackManager {
 public:
 	void registerSequence(Sequence_t const &seq);
-	FeedbackManager(T &item, size_t const queueSize = 4);
+	void registerSequence(Sequence_t const &seq, SemaphoreHandle_t const complete);
+	void init(T *const item, size_t const queueSize);
+	QueueHandle_t queue;
 protected:
+	struct SequenceMeta {
+		Sequence_t sequence;
+		SemaphoreHandle_t sem_complete = NULL;
+	};
 	virtual void cleanup();
 	virtual void queueFull();
 	static void taskFunction(void *const feedbackManager);
 
 	void task_main();
-	T &item;
+	T *item;
 	TaskHandle_t task;
-	QueueHandle_t queue;
 };
+
+template <typename T, typename Sequence_t /*= std::function<void (T &)>*/>
+void FeedbackManager<T, Sequence_t>::init(T *const item, size_t const queueSize)
+{
+	this->item = item;
+	queue = xQueueCreate(queueSize, sizeof(Sequence_t *));
+	if(queue == NULL)
+		debugbreak();
+	if(xTaskCreate(taskFunction, config::feedbackmanager::taskName, config::feedbackmanager::taskStackDepth, this, config::feedbackmanager::taskPriority, &task) == pdFAIL)
+		debugbreak();
+}
 
 template <typename T, typename Sequence_t>
 void FeedbackManager<T, Sequence_t>::cleanup() {}
@@ -77,36 +104,33 @@ void FeedbackManager<T, Sequence_t>::taskFunction(void *const feedbackManager)
 	static_cast<FeedbackManager *>(feedbackManager)->task_main();
 }
 
-template <typename T, typename Sequence_t /*= std::function<void (T &)>*/>
-FeedbackManager<T, Sequence_t>::FeedbackManager(T &item, size_t const queueSize /*= 4*/) : item(item)
-{
-	queue = xQueueCreate(queueSize, sizeof(Sequence_t *));
-	if(queue == NULL) {
-		debugbreak();
-	}
-	if(xTaskCreate(taskFunction, config::feedbackmanager::taskName, config::feedbackmanager::taskStackDepth, this, config::feedbackmanager::taskPriority, &task) == pdFAIL) {
-		debugbreak();
-	}
-}
-
 template <typename T, typename Sequence_t>
 void FeedbackManager<T, Sequence_t>::task_main()
 {
 	while(true) {
-		Sequence_t *seq;
+		SequenceMeta *seq;
 		xQueueReceive(queue, &seq, portMAX_DELAY);
-		(*seq)(item);
-		seq->~Sequence_t();
-		std::free(seq);
+		(seq->sequence)(*item);
+		if(seq->sem_complete != NULL)
+			xSemaphoreGive(seq->sem_complete);
+		seq->~SequenceMeta();
+		vPortFree(seq);
 	}
 }
 
 template <typename T, typename Sequence_t>
 void FeedbackManager<T, Sequence_t>::registerSequence(Sequence_t const &seq)
 {
-	//Manual memory management on modern C++ :(. Have to do this because otherwise... IDK. Too tired. Might actually work without this. Whatever.
-	void *buffer = std::malloc(sizeof(Sequence_t));
-	Sequence_t *seqptr = new (buffer)(Sequence_t) (seq);
-	if(xQueueSendToBack(queue, &seqptr, 0) == errQUEUE_FULL)
+	registerSequence(seq, NULL);
+}
+
+template <typename T, typename Sequence_t /*= std::function<void (T &)>*/>
+void FeedbackManager<T, Sequence_t>::registerSequence(Sequence_t const &seq, SemaphoreHandle_t const complete)
+{
+	SequenceMeta *seqptr = new (pvPortMalloc(sizeof(SequenceMeta))) SequenceMeta{seq, complete};
+	if(xQueueSendToBack(queue, &seqptr, portMAX_DELAY) == errQUEUE_FULL) {
+		seqptr->~SequenceMeta();
+		vPortFree(seqptr);
 		queueFull();
+	}
 }

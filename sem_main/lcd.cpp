@@ -8,48 +8,56 @@
 #include "lcd.h"
 #include "config.h"
 #include <algorithm>
+#include <cstring>
+
+TaskHandle_t ViewerBoard::task = NULL;
 
 void ViewerBoard::clearDisplay()
 {
-	cachedBuffer.push_back(static_cast<uint8_t>(InputCommand::ClearDisplay));
+	(*pendingBuffer)[pos++] = InputCommand::ClearDisplay;
 }
 
 void ViewerBoard::setPosition(uint8_t const pos)
 {
-	cachedBuffer.push_back(static_cast<uint8_t>(InputCommand::SetPosition));
-	cachedBuffer.push_back(pos);
+	(*pendingBuffer)[this->pos++] = InputCommand::SetPosition;
+	(*pendingBuffer)[this->pos++] = pos;
 }
 
-void ViewerBoard::writeText(std::string const &str)
+void ViewerBoard::writeText(const char str[], unsigned int const len)
 {
-	std::copy(str.begin(), str.end(), std::back_inserter(cachedBuffer));
+	std::memcpy(pendingBuffer->data() + pos, str, len);
+	pos += len;
+}
+
+void ViewerBoard::writeText(const char str[])
+{
+	writeText(str, std::strlen(str));
 }
 
 void ViewerBoard::setBuzzerState(bool const state)
 {
-	cachedBuffer.push_back(static_cast<uint8_t>(state ? InputCommand::StartBuzzer : InputCommand::StopBuzzer));
+	(*pendingBuffer)[pos++] = state ? InputCommand::StartBuzzer : InputCommand::StopBuzzer;
 }
 
 void ViewerBoard::setLEDState(bool const state)
 {
-	cachedBuffer.push_back(static_cast<uint8_t>(state ? InputCommand::LEDOn : InputCommand::LEDOff));
+	(*pendingBuffer)[pos++] = state ? InputCommand::LEDOn : InputCommand::LEDOff;
 }
 
 void ViewerBoard::send()
 {
-	cachedBuffer.insert(cachedBuffer.begin(), 0xfe);
-	cachedBuffer.push_back(0xff);
-	//May as well just move the data there
-	pendingBuffers.push_back(std::move(cachedBuffer));
-	cachedBuffer.clear();
-	xSemaphoreGive(sem_pending);
+	//Finish instruction
+	(*pendingBuffer)[pos++] = 0xff;
+	(*pendingBuffer)[pendingBuffer->size() - 1] = pos;
+	if(xQueueSendToBack(que_pendingBuffers, &pendingBuffer, 0) == errQUEUE_FULL) {
+		pendingBuffer->~Buffer_t();
+		vPortFree(pendingBuffer);
+	}
+	alloc_buffer();
 }
 
- ViewerBoard::ViewerBoard()
+void ViewerBoard::init()
 {
-	cachedBuffer.reserve(32);
-	pendingBuffers.reserve(2);
-
 	usart_config config;
 	usart_get_config_defaults(&config);
 	config.baudrate = ::config::viewerboard::baudrate;
@@ -72,17 +80,15 @@ void ViewerBoard::send()
 
 	usart_register_callback(&instance, writeComplete_callback, USART_CALLBACK_BUFFER_TRANSMITTED);
 	usart_enable_callback(&instance, USART_CALLBACK_BUFFER_TRANSMITTED);
-
 	usart_enable(&instance);
 
-	if((sem_transferComplete = xSemaphoreCreateBinary()) == NULL) {
-		//Error
-	}
-	if((sem_pending = xSemaphoreCreateCounting(::config::viewerboard::pendingQueueSize, 0)) == NULL) {
-		//Error
+	alloc_buffer();
+
+	if((que_pendingBuffers = xQueueCreate(::config::viewerboard::pendingQueueSize, sizeof(Buffer_t *))) == NULL) {
+		debugbreak();
 	}
 	if(xTaskCreate(taskFunction, ::config::viewerboard::taskName, ::config::viewerboard::taskStackDepth, this, ::config::viewerboard::taskPriority, &task) == errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY) {
-		//Error
+		debugbreak();
 	}
 }
 
@@ -93,29 +99,35 @@ void ViewerBoard::taskFunction(void *const viewerBoard)
 
 void ViewerBoard::writeComplete_callback(usart_module *const module)
 {
-	BaseType_t highPriority;
-	xSemaphoreGiveFromISR(sem_transferComplete, &highPriority);
-	portYIELD_FROM_ISR(highPriority);
+	BaseType_t prio = 0;
+	vTaskNotifyGiveFromISR(task, &prio);
+	portYIELD_FROM_ISR(prio);
 }
 
 void ViewerBoard::task_main()
 {
 	while(true) {
-		//Wait for a transfer request
-		xSemaphoreTake(sem_pending, portMAX_DELAY);
-		auto const &buffer = pendingBuffers[0];
+		//Wait for items in queue
+		Buffer_t *buffer = nullptr;
+		xQueueReceive(que_pendingBuffers, &buffer, portMAX_DELAY);
 		//Make the transfer
-		usart_write_buffer_job(&instance, const_cast<uint8_t *>(buffer.data()), buffer.size());
+		usart_write_buffer_job(&instance, reinterpret_cast<uint8_t *>(buffer->data()), (*buffer)[buffer->size() - 1]);
 		//Wait for transfer to complete
-		if(xSemaphoreTake(sem_transferComplete, ::config::viewerboard::transmitTimeout) == pdFALSE) {
-			//Error
-		}
+		ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 		//Delete the buffer
-		pendingBuffers.erase(pendingBuffers.begin());
+		buffer->~Buffer_t();
+		vPortFree(buffer);
 	}
 }
 
-SemaphoreHandle_t ViewerBoard::sem_transferComplete;
+void ViewerBoard::alloc_buffer()
+{
+	pendingBuffer = new (pvPortMalloc(sizeof(Buffer_t))) Buffer_t;
+	//Start instruction
+	(*pendingBuffer)[0] = 0xfe;
+	//+1 to give room for start instruction
+	pos = 1;
+}
 
 void ViewerBoard::LED::setLEDState(bool const state)
 {

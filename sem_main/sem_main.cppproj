@@ -48,12 +48,13 @@
           <option id="sam0.drivers.tc" value="Add" config="callback" content-id="Atmel.ASF" />
           <option id="sam0.drivers.tcc" value="Add" config="callback" content-id="Atmel.ASF" />
           <option id="sam0.utils.stdio.stdio_serial" value="Add" config="" content-id="Atmel.ASF" />
+          <option id="sam0.drivers.rtc" value="Add" config="count_callback" content-id="Atmel.ASF" />
           <option id="sam0.utils.linker_scripts" value="Add" config="" content-id="Atmel.ASF" />
         </options>
         <configurations>
           <configuration key="config.thirdparty.os.freertos-8_0_1.memory_manager" value="1_static_allocation" default="1_static_allocation" content-id="Atmel.ASF" />
           <configuration key="config.common.services.fs.fatfs.codepage" value="sbcs" default="sbcs" content-id="Atmel.ASF" />
-          <configuration key="config.sam0.drivers.rtc" value="calendar_callback" default="count_callback" content-id="Atmel.ASF" />
+          <configuration key="config.sam0.drivers.rtc" value="count_callback" default="count_callback" content-id="Atmel.ASF" />
         </configurations>
         <files>
           <file path="src/main.c" framework="" version="" source="common2/applications/user_application/main.c" changed="False" content-id="Atmel.ASF" />
@@ -288,6 +289,11 @@
           <file path="src/ASF/common/services/serial/serial.h" framework="" version="3.35.1" source="common\services\serial\serial.h" changed="False" content-id="Atmel.ASF" />
           <file path="src/ASF/sam0/utils/stdio/read.c" framework="" version="3.35.1" source="sam0\utils\stdio\read.c" changed="False" content-id="Atmel.ASF" />
           <file path="src/ASF/sam0/utils/stdio/write.c" framework="" version="3.35.1" source="sam0\utils\stdio\write.c" changed="False" content-id="Atmel.ASF" />
+          <file path="src/ASF/sam0/drivers/rtc/rtc_count.h" framework="" version="3.35.1" source="sam0\drivers\rtc\rtc_count.h" changed="False" content-id="Atmel.ASF" />
+          <file path="src/ASF/sam0/drivers/rtc/rtc_count_interrupt.h" framework="" version="3.35.1" source="sam0\drivers\rtc\rtc_count_interrupt.h" changed="False" content-id="Atmel.ASF" />
+          <file path="src/ASF/sam0/drivers/rtc/rtc_tamper.h" framework="" version="3.35.1" source="sam0\drivers\rtc\rtc_tamper.h" changed="False" content-id="Atmel.ASF" />
+          <file path="src/ASF/sam0/drivers/rtc/rtc_sam_d_r_h/rtc_count.c" framework="" version="3.35.1" source="sam0\drivers\rtc\rtc_sam_d_r_h\rtc_count.c" changed="False" content-id="Atmel.ASF" />
+          <file path="src/ASF/sam0/drivers/rtc/rtc_sam_d_r_h/rtc_count_interrupt.c" framework="" version="3.35.1" source="sam0\drivers\rtc\rtc_sam_d_r_h\rtc_count_interrupt.c" changed="False" content-id="Atmel.ASF" />
         </files>
         <documentation help="http://asf.atmel.com/docs/3.35.1/common.applications.user_application.sam0_system.user_board.atsamd21g17a/html/index.html" />
         <offline-documentation help="" />
@@ -336,6 +342,7 @@
             <Value>USART_CALLBACK_MODE=true</Value>
             <Value>TC_ASYNC=true</Value>
             <Value>TCC_ASYNC=true</Value>
+            <Value>RTC_COUNT_ASYNC=true</Value>
           </ListValues>
         </armgcc.compiler.symbols.DefSymbols>
         <armgcc.compiler.directories.IncludePaths>
@@ -381,6 +388,8 @@
             <Value>../src/ASF/sam0/drivers/tcc</Value>
             <Value>../src/ASF/sam0/utils/stdio/stdio_serial</Value>
             <Value>../src/ASF/common/services/serial</Value>
+            <Value>../src/ASF/sam0/drivers/rtc</Value>
+            <Value>../src/ASF/sam0/drivers/rtc/rtc_sam_d_r_h</Value>
           </ListValues>
         </armgcc.compiler.directories.IncludePaths>
         <armgcc.compiler.optimization.level>Optimize for size (-Os)</armgcc.compiler.optimization.level>
@@ -532,9 +541,11 @@
             <Value>../src/ASF/sam0/drivers/tcc</Value>
             <Value>../src/ASF/sam0/utils/stdio/stdio_serial</Value>
             <Value>../src/ASF/common/services/serial</Value>
+            <Value>../src/ASF/sam0/drivers/rtc</Value>
+            <Value>../src/ASF/sam0/drivers/rtc/rtc_sam_d_r_h</Value>
           </ListValues>
         </armgcccpp.assembler.general.IncludePaths>
-        <armgcccpp.preprocessingassembler.general.AssemblerFlags>-DUSB_HOST_LPM_SUPPORT -DADC_CALLBACK_MODE=true -DEVENTS_INTERRUPT_HOOKS_MODE=true -DEXTINT_CALLBACK_MODE=true -DI2C_MASTER_CALLBACK_MODE=true -DSPI_CALLBACK_MODE=true -DUSART_CALLBACK_MODE=true -DTC_ASYNC=true -DTCC_ASYNC=true</armgcccpp.preprocessingassembler.general.AssemblerFlags>
+        <armgcccpp.preprocessingassembler.general.AssemblerFlags>-DUSB_HOST_LPM_SUPPORT -DADC_CALLBACK_MODE=true -DEVENTS_INTERRUPT_HOOKS_MODE=true -DEXTINT_CALLBACK_MODE=true -DI2C_MASTER_CALLBACK_MODE=true -DSPI_CALLBACK_MODE=true -DUSART_CALLBACK_MODE=true -DTC_ASYNC=true -DTCC_ASYNC=true -DRTC_COUNT_ASYNC=true</armgcccpp.preprocessingassembler.general.AssemblerFlags>
         <armgcccpp.preprocessingassembler.general.IncludePaths>
           <ListValues>
             <Value>%24(PackRepoDir)\arm\cmsis\5.0.1\CMSIS\Include\</Value>
@@ -578,6 +589,8 @@
             <Value>../src/ASF/sam0/drivers/tcc</Value>
             <Value>../src/ASF/sam0/utils/stdio/stdio_serial</Value>
             <Value>../src/ASF/common/services/serial</Value>
+            <Value>../src/ASF/sam0/drivers/rtc</Value>
+            <Value>../src/ASF/sam0/drivers/rtc/rtc_sam_d_r_h</Value>
           </ListValues>
         </armgcccpp.preprocessingassembler.general.IncludePaths>
       </ArmGccCpp>
@@ -604,6 +617,8 @@
       <Value>USART_CALLBACK_MODE=true</Value>
       <Value>TC_ASYNC=true</Value>
       <Value>TCC_ASYNC=true</Value>
+      <Value>RTC_COUNT_ASYNC=true</Value>
+      <Value>HAVE_CONFIG_H</Value>
     </ListValues>
   </armgcc.compiler.symbols.DefSymbols>
   <armgcc.compiler.directories.IncludePaths>
@@ -651,6 +666,9 @@
       <Value>../src/ASF/common/services/serial</Value>
       <Value>../freertos/include</Value>
       <Value>../freertos/portable/GCC/ARM_CM0</Value>
+      <Value>../src/ASF/sam0/drivers/rtc</Value>
+      <Value>../src/ASF/sam0/drivers/rtc/rtc_sam_d_r_h</Value>
+      <Value>..</Value>
     </ListValues>
   </armgcc.compiler.directories.IncludePaths>
   <armgcc.compiler.optimization.level>Optimize debugging experience (-Og)</armgcc.compiler.optimization.level>
@@ -659,7 +677,7 @@
   <armgcc.compiler.optimization.PrepareDataForGarbageCollection>True</armgcc.compiler.optimization.PrepareDataForGarbageCollection>
   <armgcc.compiler.optimization.DebugLevel>Maximum (-g3)</armgcc.compiler.optimization.DebugLevel>
   <armgcc.compiler.warnings.AllWarnings>True</armgcc.compiler.warnings.AllWarnings>
-  <armgcc.compiler.miscellaneous.OtherFlags>-pipe -fno-strict-aliasing -Wall -Wstrict-prototypes -Wmissing-prototypes -Werror-implicit-function-declaration -Wpointer-arith -std=gnu99 -ffunction-sections -fdata-sections -Wchar-subscripts -Wcomment -Wformat=2 -Wimplicit-int -Wmain -Wparentheses -Wsequence-point -Wreturn-type -Wswitch -Wtrigraphs -Wunused -Wuninitialized -Wunknown-pragmas -Wfloat-equal -Wundef -Wshadow -Wbad-function-cast -Wwrite-strings -Wsign-compare -Waggregate-return  -Wmissing-declarations -Wformat -Wmissing-format-attribute -Wno-deprecated-declarations -Wpacked -Wredundant-decls -Wnested-externs -Wlong-long -Wunreachable-code -Wcast-align --param max-inline-insns-single=500</armgcc.compiler.miscellaneous.OtherFlags>
+  <armgcc.compiler.miscellaneous.OtherFlags>-I ../src/ASF/common/services/adp -pipe -fno-strict-aliasing -Wall -Wstrict-prototypes -Wmissing-prototypes -Werror-implicit-function-declaration -Wpointer-arith -std=gnu99 -ffunction-sections -fdata-sections -Wchar-subscripts -Wcomment -Wformat=2 -Wimplicit-int -Wmain -Wparentheses -Wsequence-point -Wreturn-type -Wswitch -Wtrigraphs -Wunused -Wuninitialized -Wunknown-pragmas -Wfloat-equal -Wundef -Wshadow -Wbad-function-cast -Wwrite-strings -Wsign-compare -Waggregate-return  -Wmissing-declarations -Wformat -Wmissing-format-attribute -Wno-deprecated-declarations -Wpacked -Wredundant-decls -Wnested-externs -Wlong-long -Wunreachable-code -Wcast-align --param max-inline-insns-single=500</armgcc.compiler.miscellaneous.OtherFlags>
   <armgcccpp.compiler.symbols.DefSymbols>
     <ListValues>
       <Value>DEBUG</Value>
@@ -679,6 +697,7 @@
       <Value>WDT_CALLBACK_MODE=true</Value>
       <Value>__FREERTOS__</Value>
       <Value>RTC_CALENDAR_ASYNC=true</Value>
+      <Value>HAVE_CONFIG_H</Value>
     </ListValues>
   </armgcccpp.compiler.symbols.DefSymbols>
   <armgcccpp.compiler.directories.IncludePaths>
@@ -729,6 +748,7 @@
       <Value>../freertos/include</Value>
       <Value>../freertos/portable/GCC/ARM_CM0</Value>
       <Value>../src/ASF/common/services/serial</Value>
+      <Value>..</Value>
     </ListValues>
   </armgcccpp.compiler.directories.IncludePaths>
   <armgcccpp.compiler.optimization.level>Optimize debugging experience (-Og)</armgcccpp.compiler.optimization.level>
@@ -736,7 +756,7 @@
   <armgcccpp.compiler.optimization.EnableUnsafeMatchOptimizations>True</armgcccpp.compiler.optimization.EnableUnsafeMatchOptimizations>
   <armgcccpp.compiler.optimization.DebugLevel>Maximum (-g3)</armgcccpp.compiler.optimization.DebugLevel>
   <armgcccpp.compiler.warnings.AllWarnings>True</armgcccpp.compiler.warnings.AllWarnings>
-  <armgcccpp.compiler.miscellaneous.OtherFlags>-std=gnu++14</armgcccpp.compiler.miscellaneous.OtherFlags>
+  <armgcccpp.compiler.miscellaneous.OtherFlags>-std=gnu++14 -I../src/ASF/common/services/adp</armgcccpp.compiler.miscellaneous.OtherFlags>
   <armgcccpp.linker.general.UseNewlibNano>True</armgcccpp.linker.general.UseNewlibNano>
   <armgcccpp.linker.libraries.Libraries>
     <ListValues>
@@ -752,7 +772,7 @@
   </armgcccpp.linker.libraries.LibrarySearchPaths>
   <armgcccpp.linker.optimization.GarbageCollectUnusedSections>True</armgcccpp.linker.optimization.GarbageCollectUnusedSections>
   <armgcccpp.linker.memorysettings.ExternalRAM />
-  <armgcccpp.linker.miscellaneous.LinkerFlags>-Tsamd21g17a_flash.ld -lc -lrdimon -u _printf_float</armgcccpp.linker.miscellaneous.LinkerFlags>
+  <armgcccpp.linker.miscellaneous.LinkerFlags>-Tsamd21g17a_flash.ld</armgcccpp.linker.miscellaneous.LinkerFlags>
   <armgcccpp.linker.miscellaneous.OtherOptions>
     <ListValues>
       <Value>--defsym=STACK_SIZE=512</Value>
@@ -801,10 +821,12 @@
       <Value>../src/ASF/sam0/drivers/tcc</Value>
       <Value>../src/ASF/sam0/utils/stdio/stdio_serial</Value>
       <Value>../src/ASF/common/services/serial</Value>
+      <Value>../src/ASF/sam0/drivers/rtc</Value>
+      <Value>../src/ASF/sam0/drivers/rtc/rtc_sam_d_r_h</Value>
     </ListValues>
   </armgcccpp.assembler.general.IncludePaths>
   <armgcccpp.assembler.debugging.DebugLevel>Default (-g)</armgcccpp.assembler.debugging.DebugLevel>
-  <armgcccpp.preprocessingassembler.general.AssemblerFlags>-DUSB_HOST_LPM_SUPPORT -DADC_CALLBACK_MODE=true -DEVENTS_INTERRUPT_HOOKS_MODE=true -DEXTINT_CALLBACK_MODE=true -DI2C_MASTER_CALLBACK_MODE=true -DSPI_CALLBACK_MODE=true -DUSART_CALLBACK_MODE=true -DTC_ASYNC=true -DTCC_ASYNC=true</armgcccpp.preprocessingassembler.general.AssemblerFlags>
+  <armgcccpp.preprocessingassembler.general.AssemblerFlags>-DUSB_HOST_LPM_SUPPORT -DADC_CALLBACK_MODE=true -DEVENTS_INTERRUPT_HOOKS_MODE=true -DEXTINT_CALLBACK_MODE=true -DI2C_MASTER_CALLBACK_MODE=true -DSPI_CALLBACK_MODE=true -DUSART_CALLBACK_MODE=true -DTC_ASYNC=true -DTCC_ASYNC=true -DRTC_COUNT_ASYNC=true</armgcccpp.preprocessingassembler.general.AssemblerFlags>
   <armgcccpp.preprocessingassembler.general.IncludePaths>
     <ListValues>
       <Value>%24(PackRepoDir)\arm\cmsis\5.0.1\CMSIS\Include\</Value>
@@ -848,6 +870,8 @@
       <Value>../src/ASF/sam0/drivers/tcc</Value>
       <Value>../src/ASF/sam0/utils/stdio/stdio_serial</Value>
       <Value>../src/ASF/common/services/serial</Value>
+      <Value>../src/ASF/sam0/drivers/rtc</Value>
+      <Value>../src/ASF/sam0/drivers/rtc/rtc_sam_d_r_h</Value>
     </ListValues>
   </armgcccpp.preprocessingassembler.general.IncludePaths>
   <armgcccpp.preprocessingassembler.debugging.DebugLevel>Default (-Wa,-g)</armgcccpp.preprocessingassembler.debugging.DebugLevel>
@@ -855,6 +879,12 @@
     </ToolchainSettings>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="adpcontrol.cpp">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="adpcontrol.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="bms.cpp">
       <SubType>compile</SubType>
     </Compile>
@@ -865,6 +895,9 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="buzzer.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="c99-snprintf\snprintf.c">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="config.h">
@@ -933,7 +966,7 @@
     <Compile Include="freertos\portable\GCC\ARM_CM0\portmacro.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="freertos\portable\MemMang\heap_3.c">
+    <Compile Include="freertos\portable\MemMang\heap_2.c">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="freertos\queue.c">
@@ -969,6 +1002,12 @@
     <Compile Include="main.cpp">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="manualserial.cpp">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="manualserial.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="motor.cpp">
       <SubType>compile</SubType>
     </Compile>
@@ -997,6 +1036,30 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="spimanager.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <None Include="src\ASF\sam0\drivers\rtc\rtc_count.h">
+      <SubType>compile</SubType>
+    </None>
+    <None Include="src\ASF\sam0\drivers\rtc\rtc_count_interrupt.h">
+      <SubType>compile</SubType>
+    </None>
+    <None Include="src\ASF\sam0\drivers\rtc\rtc_tamper.h">
+      <SubType>compile</SubType>
+    </None>
+    <Compile Include="src\ASF\common\services\adp\adp.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\ASF\common\services\adp\adp.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\ASF\common\services\adp\adp_interface.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\ASF\sam0\drivers\rtc\rtc_sam_d_r_h\rtc_count.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\ASF\sam0\drivers\rtc\rtc_sam_d_r_h\rtc_count_interrupt.c">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="valuematch.h">
@@ -1700,6 +1763,7 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="c99-snprintf\" />
     <Folder Include="freertos\" />
     <Folder Include="freertos\include\" />
     <Folder Include="freertos\portable\" />
@@ -1714,6 +1778,8 @@
     <Folder Include="src\ASF\common\" />
     <Folder Include="src\ASF\common\boards\" />
     <Folder Include="src\ASF\common\services\" />
+    <Folder Include="src\ASF\common\services\adp\" />
+    <Folder Include="src\ASF\common\services\adp\sam0\" />
     <Folder Include="src\ASF\common\services\serial\" />
     <Folder Include="src\ASF\common\services\serial\sam0_usart\" />
     <Folder Include="src\ASF\common\utils\" />
@@ -1728,6 +1794,8 @@
     <Folder Include="src\ASF\sam0\drivers\extint\extint_sam_d_r_h\" />
     <Folder Include="src\ASF\sam0\drivers\port\" />
     <Folder Include="src\ASF\sam0\drivers\port\quick_start\" />
+    <Folder Include="src\ASF\sam0\drivers\rtc\" />
+    <Folder Include="src\ASF\sam0\drivers\rtc\rtc_sam_d_r_h\" />
     <Folder Include="src\ASF\sam0\drivers\sercom\" />
     <Folder Include="src\ASF\sam0\drivers\sercom\i2c\" />
     <Folder Include="src\ASF\sam0\drivers\sercom\i2c\i2c_sam0\" />

@@ -18,7 +18,7 @@
 
 namespace tccEncoder {
 	extern tcc_module instance;
-	//Returns the speed of said thing in ms
+	//Returns the speed of said thing in gears per second
 	float motor_speedConvert(float const interval);
 	float motor_driveTrainConvert(float const interval);
 	void init();
@@ -27,6 +27,7 @@ namespace tccEncoder {
 class Encoder {
 public:
 	virtual float getSpeed() const = 0;
+	virtual float getAverageInterval() const = 0;
 };
 
 template <typename T, size_t s = config::encoder::bufferSize>
@@ -34,6 +35,7 @@ class Ticker {
 public:
 	void tick(T const t);
 	T getAverageInterval() const;
+	Ticker();
 private:
 	using buf_t = std::array<T, s>;
 	buf_t buffer;
@@ -41,6 +43,12 @@ private:
 	size_t itr = 0;
 	bool filled = false;
 };
+
+template <typename T, size_t s /*= config::encoder::bufferSize*/>
+Ticker<T, s>::Ticker()
+{
+	std::fill(buffer.begin(), buffer.end(), 0);
+}
 
 template <typename T, size_t s /*= config::encoder::bufferSize*/>
 T Ticker<T, s>::getAverageInterval() const
@@ -51,9 +59,11 @@ T Ticker<T, s>::getAverageInterval() const
 		return std::accumulate(buffer.begin(), buffer.begin() + itr, 0) / std::distance(buffer.begin(), buffer.begin() + itr);
 	}
 	T total = 0;
-	if(itr != 0)
+	if(itr != 0) {
 		total = std::accumulate(buffer.begin() + itr, buffer.end(), 0);
-	return (total + std::accumulate(buffer.begin(), buffer.begin() + itr, 0)) / buffer.size();
+		return std::accumulate(buffer.begin(), buffer.begin() + itr, total) / buffer.size();
+	}
+	return std::accumulate(buffer.begin(), buffer.end(), 0) / buffer.size();
 }
 
 template <typename T, size_t s /*= config::encoder::*/>
@@ -73,6 +83,7 @@ public:
 	static void overflow(counter_t const amount = 0xffff);
 	static void compare(counter_t const value);
 	float getSpeed() const override;
+	float getAverageInterval() const override;
 	TimerEncoder(convert_t const convertfn);
 private:
 	static TimerEncoder *current;
@@ -81,6 +92,12 @@ private:
 	counter_t total = 0;
 	counter_t start = 0;
 };
+
+template <size_t n, typename counter_t /*= unsigned int*/>
+float TimerEncoder<n, counter_t>::getAverageInterval() const 
+{
+	return ticker.getAverageInterval();
+}
 
 template <size_t n, typename counter_t /*= size_t*/>
 TimerEncoder<n, counter_t> * TimerEncoder<n, counter_t>::current = nullptr;

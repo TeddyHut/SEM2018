@@ -26,11 +26,9 @@ public:
 	};
 
 	void addJob(Job const &job);
-	SPIManager();
+	void init();
 protected:
-	SemaphoreHandle_t sem_startup;
 	spi_module spi_instance;
-private:
 	static void taskFunction(void *spimanager);
 	void task_main();
 	TaskHandle_t task;
@@ -39,5 +37,5 @@ private:
 
 class SPIManager0 : public SPIManager {
 public:
-	SPIManager0();
+	void init();
 };

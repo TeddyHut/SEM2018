@@ -33,7 +33,7 @@ void Buzzer0::setState(bool const state)
 	else tc_disable(&instance);
 }
 
- Buzzer0::Buzzer0()
+void Buzzer0::init()
 {
 	tc_config config;
 	tc_get_config_defaults(&config);
@@ -59,10 +59,11 @@ void Buzzer0::setState(bool const state)
 	//tc_enable(&instance);
 }
 
- BuzzerManager::BuzzerManager(Buzzer &buzzer) : FeedbackManager<Buzzer>(buzzer, config::buzzermanager::sequenceQueueSize)
+void BuzzerManager::init(Buzzer *const buzzer)
 {
+	FeedbackManager<Buzzer>::init(buzzer, config::buzzermanager::sequenceQueueSize);
 }
 
 void BuzzerManager::cleanup() {
-	item.stop();
+	item->stop();
 }

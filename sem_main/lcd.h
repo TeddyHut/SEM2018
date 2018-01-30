@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <cinttypes>
 #include <string>
-#include <vector>
+#include <array>
 #include <usart.h>
 #include <usart_interrupt.h>
 #include <FreeRTOS.h>
@@ -38,33 +38,38 @@ public:
 	//Cache instructions
 	void clearDisplay();
 	void setPosition(uint8_t const pos);
-	void writeText(std::string const &str);
+	void writeText(const char str[], unsigned int const len);
+	void writeText(const char str[]);
 	void setBuzzerState(bool const state);
 	void setLEDState(bool const state);
 
 	//Send cached instructions
 	void send();
 
-	ViewerBoard();
+	void init();
 private:
-	enum class InputCommand : uint8_t {
-		ClearDisplay = 1,
-		SetPosition,
-		StartBuzzer,
-		StopBuzzer,
-		LEDOn,
-		LEDOff,
+	struct InputCommand {
+		enum e : uint8_t {
+			ClearDisplay = 1,
+			SetPosition,
+			StartBuzzer,
+			StopBuzzer,
+			LEDOn,
+			LEDOff,
+		};
 	};
 
 	static void taskFunction(void *const viewerBoard);
 	static void writeComplete_callback(usart_module *const module);
 	
 	void task_main();
-	static SemaphoreHandle_t sem_transferComplete;
-	SemaphoreHandle_t sem_pending;
-	TaskHandle_t task;
+	static TaskHandle_t task;
 
-	std::vector<uint8_t> cachedBuffer;
-	std::vector<std::vector<uint8_t>> pendingBuffers;
+	void alloc_buffer();
+
+	using Buffer_t = std::array<char, 40>;
+	Buffer_t *pendingBuffer;
+	unsigned int pos;
+	QueueHandle_t que_pendingBuffers;
 	usart_module instance;
 };

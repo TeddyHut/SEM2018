@@ -8,5 +8,5 @@
 #pragma once
 
 namespace runmanagement {
-
+	void run();
 }

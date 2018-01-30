@@ -21,9 +21,10 @@ namespace bmsstatic {
 class BMS {
 public:
 	struct Data {
-		bool connected;
-		float temperature;
-		float current;
+		bool connected = false;
+		float temperature = 0;
+		float current = 0;
+		float voltage = 0;
 		std::array<float, 6> cellVoltage{6};
 		Data() = default;
 		Data(Data const &p);
@@ -43,7 +44,7 @@ public:
 
 	void setLEDState(bool const state);
 
-	BMS(uint8_t const pin, size_t const refreshRate = config::bms::refreshRate);
+	void init(uint8_t const pin, size_t const refreshRate = config::bms::refreshRate);
 private:
 	static void taskFunction(void *const bms);
 	

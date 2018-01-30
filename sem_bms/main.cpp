@@ -126,6 +126,7 @@ ISR(TCB0_INT_vect) {
 	//Calculate VCC to that the DAC threshold can be calculated (since output of ACS711 is dependent on VCC)
 	float vcc = vdiv_input(adc_voltage<uint16_t, 1024>(retreiveFromBuffer(dataBuffer[bufferChoice], DataIndexes::Cell0ADC), 2.5f), vdiv_factor(10, 5.6));
 	DAC0.DATA = adc_value<uint8_t, 0xff>(current_outV(CutoffCurrent, vcc), 1.5f);
+	volatile uint16_t currentval = retreiveFromBuffer(dataBuffer[bufferChoice], DataIndexes::CurrentADC);
 	//Make sure that VCC is still high enough
 	if(vcc <= CutoffVoltage)
 		fireRelay();

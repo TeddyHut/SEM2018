@@ -10,8 +10,10 @@
 #include "spimanager.h"
 #include <cinttypes>
 #include <algorithm>
+#include <numeric>
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 
 using namespace adcutil;
 
@@ -55,13 +57,18 @@ namespace {
 	float calculateTemperature(uint16_t const value) {
 		return milliVoltsToDegreesC(vdiv_input(adc_voltage<uint16_t, 1024>(value, 1.1f), vdiv_factor(5.1f, 7.5f)) * 1000.0f);
 	}
+
+	constexpr float current_outV_error(float const vcc) {
+		return (0.015914 * vcc) - 0.03719;
+	}
 	
 	constexpr float current_outV(float const current, float const vref) {
-		return current * ((vref - 0.6f) / (12.5f * 2.0f));
+		return (current * ((vref - 0.6f) / (12.5f * 2.0f))) - current_outV_error(vref);
 	}
 
 	constexpr float current_current(float const outV, float const vref) {
-		return outV / ((vref - 0.6f) / (12.5f * 2.0f));
+		float m = ((vref - 0.6f) / (12.5f * 2.0f));
+		return (outV + current_outV_error(vref)) / m;
 	}
 
 	//Gets the current from the result of the current conversion
@@ -102,8 +109,10 @@ void BMS::setLEDState(bool const state)
 	runtime::mainspi->addJob(job);
 }
 
- BMS::BMS(uint8_t const pin, size_t const refreshRate /*= config::bms::refreshRate*/) : spi_pin(pin), refreshRate(refreshRate)
+void BMS::init(uint8_t const pin, size_t const refreshRate /*= config::bms::refreshRate*/)
 {
+	this->spi_pin = pin;
+	this->refreshRate = refreshRate;
 	port_config config;
 	port_get_config_defaults(&config);
 	config.direction = PORT_PIN_DIR_OUTPUT;
@@ -115,8 +124,7 @@ void BMS::setLEDState(bool const state)
 	if((mtx_bmsdata = xSemaphoreCreateMutex()) == NULL)
 		debugbreak();
 	if(xTaskCreate(taskFunction, config::bms::taskName, config::bms::taskStackDepth, this, config::bms::taskPriority, &task) == pdFAIL)
-		debugbreak();
-
+		debugbreak();	
 }
 
 void BMS::taskFunction(void *const bms)
@@ -133,8 +141,9 @@ void BMS::task_main()
 		//RecvBuffer_t recvbuf;
 		//std::vector<uint8_t> recvbuf(bufsize);
 		//Used malloc for testing. Haven't bothered chaning back (still works). For some reason new and malloc seem to be overwriting each other and causing all sorts of problems.
-		uint8_t *sendbuf = static_cast<uint8_t *>(std::calloc(bufsize, sizeof(uint8_t)));
-		uint8_t *recvbuf = static_cast<uint8_t *>(std::malloc(bufsize * sizeof(uint8_t)));
+		uint8_t sendbuf[bufsize];
+		std::memset(sendbuf, 0, bufsize);
+		uint8_t recvbuf[bufsize];
 		sendbuf[0] = Instruction::ReceiveData;
 		SPIManager::Job job;
 		job.outbuffer = sendbuf;
@@ -149,14 +158,18 @@ void BMS::task_main()
 		bmsdata.cellVoltage[0] = vdiv_input(adc_voltage<uint16_t, 1024>(retreiveFromBuffer(recvbuf, DataIndexes::Cell0ADC), 2.5f), vdiv_factor(10, 5.6));
 		//Pretty bad way of checking connection... whatever
 		bmsdata.connected = bmsdata.cellVoltage[0] > 1.0f;
-		bmsdata.current = calculateCurrent(retreiveFromBuffer(recvbuf, DataIndexes::CurrentADC), bmsdata.cellVoltage[0]);
+		volatile float vcc = bmsdata.cellVoltage[0];
+		volatile uint16_t f_adc = retreiveFromBuffer(recvbuf, DataIndexes::CurrentADC);
+		volatile float f_outV = adc_voltage<uint16_t, 1024>(f_adc, 1.5f);
+		volatile float current = current_current(f_outV, vcc);
+		//bmsdata.current = calculateCurrent(currentValue, bmsdata.cellVoltage[0]);
 		for(unsigned int i = 1; i < 6; i++) {
 			//These use op amps which is why it's just 5.6 / 10
 			bmsdata.cellVoltage[i] = vdiv_input(adc_voltage<uint16_t, 1024>(retreiveFromBuffer(recvbuf, static_cast<DataIndexes::e>(i)), 2.5f), 5.6f / 10.0f);
 		}
+		//Calculate total voltage from cell voltages
+		bmsdata.voltage = std::accumulate(bmsdata.cellVoltage.begin(), bmsdata.cellVoltage.end(), 0);
 		xSemaphoreGive(mtx_bmsdata);
-		std::free(sendbuf);
-		std::free(recvbuf);
 		vTaskDelayUntil(&previousWakeTime, config::bms::refreshRate);
 	}
 }

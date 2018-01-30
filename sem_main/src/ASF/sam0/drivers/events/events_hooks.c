@@ -209,6 +209,7 @@ enum status_code events_ack_interrupt(struct events_resource *resource, enum eve
 	return STATUS_OK;
 }
 
+#if 0
 void EVSYS_Handler(void)
 {
 	struct events_hook *current_hook = _events_inst.hook_list;
@@ -230,6 +231,5 @@ void EVSYS_Handler(void)
 	flag = _events_inst.interrupt_flag_ack_buffer;
 	_events_inst.interrupt_flag_buffer &= ~flag;
 }
-
-
+#endif
 

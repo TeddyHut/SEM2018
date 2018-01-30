@@ -16,13 +16,13 @@ public:
 
 class LEDManager : public FeedbackManager<LED> {
 public:
-	LEDManager(LED &led);
+	void init(LED *const led);
 };
 
 class PortLED : public LED {
 public:
 	void setLEDState(bool const state) override;
-	PortLED(uint8_t const pin);
+	void init(uint8_t const pin);
 private:
-	uint8_t const pin;
+	uint8_t pin;
 };
