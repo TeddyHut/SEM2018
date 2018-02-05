@@ -11,7 +11,19 @@
 #include <stdlib.h>
 #include <math.h>
 
-constexpr float CutoffCurrent = 10;
+#define BMS_NUMBER 0
+	
+#if (BMS_NUMBER == 0)
+#define ERROR_OFFSET_CURRENT 1
+#define ERROR_OFFSET_VCC 8
+#define ERROR_OFFSET_TEMPERATURE 0
+#elif (BMS_NUMBER == 1)
+#define ERROR_OFFSET_CURRENT 1
+#define ERROR_OFFSET_VCC 7
+#define ERROR_OFFSET_TEMPERATURE 0
+#endif
+
+constexpr float CutoffCurrent = 5;
 constexpr float CutoffTemperature = 100;
 constexpr float CutoffVoltage = 3;
 
@@ -46,8 +58,21 @@ float calculateTemperature(uint16_t const value) {
 	return milliVoltsToDegreesC(vdiv_input(adc_voltage<uint16_t, 1024>(value, 1.1f), vdiv_factor(5.1f, 7.5f)) * 1000.0f);
 }
 
-float current_outV(float const current, float const vref) {
-	return (current * ((vref - 0.6f) / (12.5f * 2.0f)));
+//Output value of the ACS711 current sensor for a particular current
+constexpr float acs711_outV(float const current, float const vcc) {
+	return (current * ((vcc - 0.6f) / (12.5f * 2.0f))) + (vcc / 2);
+}
+
+constexpr float acs711_current(float const outV, float const vcc) {
+	return ((12.5f * 2.0f) / (vcc - 0.6f)) * (outV - (vcc / 2.0f));
+}
+
+constexpr float current_opamp_transformation_outV(float const inV, float const vcc) {
+	return (inV * (5.0f / 6.0f)) - (vcc / 3.0f);
+}
+
+constexpr float current_opamp_transformation_inV(float const outV, float const vcc) {
+	return (6.0f / 5.0f) * (outV + (vcc / 3.0f));
 }
 
 enum class Instruction : uint8_t {
@@ -92,7 +117,7 @@ uint16_t retreiveFromBuffer(volatile uint8_t const buffer[], DataIndexes const p
 }
 
 void fireRelay() {
-	DAC0.DATA = 0;
+	PORTA.OUTSET = 1 << 5;
 }
 
 void setLEDState(bool const state) {
@@ -107,33 +132,47 @@ ISR(TCB0_INT_vect) {
 	//Sample each ADC
 	uint8_t const bufferChoice = (dataBufferChoice == 0 ? 1 : 0);
 	for(uint8_t i = 0; i < static_cast<unsigned int>(DataIndexes::_size); i++) {
+		//Different depending on the refernce voltage
+		int errorOffset = 0;
 		//Clear and set reference voltages
 		VREF.CTRLA &= ~VREF_ADC0REFSEL_gm;
-		if(static_cast<DataIndexes>(i) == DataIndexes::TemperatureADC)
+		if(static_cast<DataIndexes>(i) == DataIndexes::TemperatureADC) {
 			VREF.CTRLA |= VREF_ADC0REFSEL_1V1_gc;
-		else if(static_cast<DataIndexes>(i) == DataIndexes::CurrentADC)
-			VREF.CTRLA |= VREF_ADC0REFSEL_1V5_gc;
-		else
+			errorOffset = ERROR_OFFSET_TEMPERATURE;
+		}
+		else if(static_cast<DataIndexes>(i) == DataIndexes::CurrentADC) {
+			VREF.CTRLA |= VREF_ADC0REFSEL_1V1_gc;
+			errorOffset = ERROR_OFFSET_CURRENT;
+		}
+		else {
 			VREF.CTRLA |= VREF_ADC0REFSEL_2V5_gc;
+			errorOffset = ERROR_OFFSET_VCC;
+		}
 		ADC0.MUXPOS = ADCMap[i];
 		ADC0.COMMAND = ADC_STCONV_bm;
 		while(ADC0.COMMAND & ADC_STCONV_bm);
 		//Store the result as lower byte -> higher byte
-		uint16_t const result = ADC0.RES / 4;	//Div by 4 because of the 4 accumulator
+		volatile uint16_t const result = (ADC0.RES / 1) + errorOffset;	//Div because of the accumulator
 		dataBuffer[bufferChoice][i * 2] = result & 0x00ff;
 		dataBuffer[bufferChoice][i * 2 + 1] = (result & 0xff00) >> 8;
 	}
-	//Calculate VCC to that the DAC threshold can be calculated (since output of ACS711 is dependent on VCC)
-	float vcc = vdiv_input(adc_voltage<uint16_t, 1024>(retreiveFromBuffer(dataBuffer[bufferChoice], DataIndexes::Cell0ADC), 2.5f), vdiv_factor(10, 5.6));
-	DAC0.DATA = adc_value<uint8_t, 0xff>(current_outV(CutoffCurrent, vcc), 1.5f);
-	volatile uint16_t currentval = retreiveFromBuffer(dataBuffer[bufferChoice], DataIndexes::CurrentADC);
+	//volatile is so that values can be seen in debugger
+	volatile uint16_t cell0val = retreiveFromBuffer(dataBuffer[bufferChoice], DataIndexes::Cell0ADC);
+	volatile float vcc = vdiv_input(adc_voltage<uint16_t, 1024>(cell0val, 2.5f), vdiv_factor(10, 5.6));
+	volatile uint16_t opamp_adcVal = retreiveFromBuffer(dataBuffer[bufferChoice], DataIndexes::CurrentADC);
+	volatile float opamp_outV = adc_voltage<uint16_t, 1024>(opamp_adcVal, 1.1f);
+	volatile float acs711OutV = current_opamp_transformation_inV(opamp_outV, vcc);
+	volatile float current = acs711_current(acs711OutV, vcc);
+	volatile float temperature = calculateTemperature(retreiveFromBuffer(dataBuffer[bufferChoice], DataIndexes::TemperatureADC));
 	//Make sure that VCC is still high enough
-	if(vcc <= CutoffVoltage)
-		fireRelay();
-	//Check the temperature (comparator should take care of current)
-	float temperature = calculateTemperature(retreiveFromBuffer(dataBuffer[bufferChoice], DataIndexes::TemperatureADC));
-	if(temperature >= CutoffTemperature)
-		fireRelay();
+	//if(vcc <= CutoffVoltage)
+	//	fireRelay();
+	////Make sure that there is no over-current
+	//if(current >= CutoffCurrent)
+	//	fireRelay();
+	//Check the temperature
+	//if(temperature >= CutoffTemperature)
+	//	fireRelay();
 	dataBufferChoice = bufferChoice;
 }
 
@@ -176,6 +215,12 @@ ISR(SPI0_INT_vect) {
 }
 
 void setup() {
+	//Set ports pin config
+	PORTA.DIR = 0b00100000;
+	PORTB.DIR = 0b00000111;
+	PORTC.DIR = 0b00000010;
+	//Don't switch relay yet
+	PORTA.OUTCLR = 1 << 5;
 	//Diable CCP protection of clock registers (works for 4 instructions)
 	CCP = CCP_IOREG_gc;
 	//Enable main clock as 20Mhz osc
@@ -190,15 +235,12 @@ void setup() {
 	//Enable alternative SPI0 pins
 	PORTMUX.CTRLB |= PORTMUX_SPI0_ALTERNATE_gc;
 
-	//Set ports pin config
-	PORTA.DIR = 0b00100000;
-	PORTB.DIR = 0b00000111;
-	PORTC.DIR = 0b00000010;
 	//Isolator enable
 	PORTB.OUTSET = 1 << 2;
 	//Button
 	PORTB.PIN3CTRL = PORT_PULLUPEN_bm;
 
+	/*
 	//Set DAC reference voltage
 	VREF.CTRLA = VREF_DAC0REFSEL_1V5_gc;
 
@@ -206,16 +248,23 @@ void setup() {
 	DAC0.DATA = 0xff;
 	//Setup DAC
 	DAC0.CTRLA = DAC_RUNSTDBY_bm | DAC_ENABLE_bm;
+	*/
 
+	/*
 	//Setup AC muxes (P0 for positive, DAC for negative)
 	AC0.MUXCTRLA = AC_MUXPOS_PIN0_gc | AC_MUXNEG_DAC_gc;
 	//Setup AC (run in standby, enable output, low power mode, enable)
 	AC0.CTRLA = AC_RUNSTDBY_bm | AC_OUTEN_bm | AC_LPMODE_EN_gc | AC_ENABLE_bm;
+	*/
 
-	//Take 4 accumulated samples
-	ADC0.CTRLB = ADC_SAMPNUM_ACC4_gc;
-	//Increase capacitance and prescale 32
+	//Take accumulated samples
+	ADC0.CTRLB = ADC_SAMPNUM_ACC1_gc;
+	//Increase capacitance and prescale
 	ADC0.CTRLC = ADC_SAMPCAP_bm | ADC_PRESC_DIV32_gc;
+	//64 cycle channel change delay
+	ADC0.CTRLD = (0x3 << 5);
+	//Increase sample time (might affect accuracy?)
+	ADC0.SAMPCTRL = 0x10;
 	//Setup ADC
 	ADC0.CTRLA = ADC_RESSEL_10BIT_gc | ADC_ENABLE_bm;
 

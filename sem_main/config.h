@@ -55,30 +55,29 @@ constexpr TickType_t msToTicks(float const ms) {
 }
 
 constexpr float kmhToMs(float const kmh) {
-	return kmh * 3.6;
+	return kmh / 3.6;
 }
 
 constexpr float msToKmh(float const ms) {
-	return ms / 3.6;
+	return ms * 3.6;
 }
 
 namespace config {
 	namespace run {
  		constexpr float servo0restposition = 0;
-		constexpr float servo0engagedposition = -87;
+		constexpr float servo0engagedposition = -113;
 		constexpr float servo1restposition = -180;
-		constexpr float servo1engagedposition = 11;
+		constexpr float servo1engagedposition = 8;
 
-		//In kmh8
-		constexpr float minimumspeed = 30;
-		constexpr float maximumspeed = 40;
+		constexpr float minimumspeed = kmhToMs(22);
+		constexpr float maximumspeed = kmhToMs(28);
 
 		constexpr float ramuptime = 10;
 		constexpr float servoengagetime = 0.1;
 		constexpr float servodisengagetime = 0.1;
-		constexpr float matchramptime = 1;
+		constexpr float matchramptime = 5;
 		constexpr float coastramptime = 10;
-		constexpr float errorrange = 0.01;
+		constexpr float errorrange = 0.005;
 
 		constexpr float alertvoltage = 3.2;
 		constexpr float shutdownvoltage = 3.05;
@@ -89,14 +88,20 @@ namespace config {
 
 		constexpr TickType_t displaycycleperiod = msToTicks(5000);
 		constexpr TickType_t displayrefreshrate = msToTicks(100);
-		constexpr TickType_t refreshRate = msToTicks(1000.0f / 30.0f);
+		constexpr TickType_t refreshRate = msToTicks(1000.0f / 60.0f);
+		constexpr TickType_t speedmatchcorrecttimeout = msToTicks(2000);
 
 		constexpr size_t buttonBufferSize = 10;
 	}
 	namespace hardware {
 		constexpr float motortogeartickratio = 0.482; //Enoder0.getinterval / encoder2.getinterval
 		constexpr float motorteeth = 12;
-		constexpr float wheelradius = 0.2;
+		constexpr float wheelradius = 0.43 / 2;
+	}
+	namespace adpcontrol {
+		constexpr uint16_t taskStackDepth = 256;
+		constexpr char const * taskName = "ADPControl";
+		constexpr unsigned int taskPriority = 1;
 	}
 	namespace servo {
 		constexpr float clockFrequency = 48000000;
@@ -128,23 +133,25 @@ namespace config {
 		constexpr size_t bufferSize = 10;
 		constexpr tcc_clock_prescaler prescaeSetting = TCC_CLOCK_PRESCALER_DIV1;
 		constexpr gclk_generator clockSource = GCLK_GENERATOR_3;
+		//1 second of no ticks results in an output of zero
+		constexpr unsigned int zerotimeout = motor::clockFrequency * 1;
 	}
 	namespace viewerboard {
 		constexpr size_t baudrate = 9600;
 		constexpr size_t pendingQueueSize = 1;
 		constexpr char const * taskName = "ViewerBoard";
-		constexpr uint16_t taskStackDepth = 128;
+		constexpr uint16_t taskStackDepth = 96;
 		constexpr unsigned int taskPriority = 1;
 		constexpr size_t transmitTimeout = 100;
 	}
 	namespace feedbackmanager {
 		constexpr char const * taskName = "FeedbackManager";
-		constexpr uint16_t taskStackDepth = 64;
+		constexpr uint16_t taskStackDepth = 52;
 		constexpr unsigned int taskPriority = 1;
 	}
 	namespace bms {
 		constexpr char const * taskName = "BMS";
-		constexpr uint16_t taskStackDepth = 128;
+		constexpr uint16_t taskStackDepth = 96;
 		constexpr unsigned int taskPriority = 1;
 		constexpr size_t refreshRate = 100;
 		constexpr unsigned int bms0_ss_pin = PIN_PA11;
@@ -163,7 +170,7 @@ namespace config {
 	}
 	namespace manualserial {
 		constexpr char const * taskName = "ManualSerial";
-		constexpr uint16_t taskStackDepth = 196;
+		constexpr uint16_t taskStackDepth = 256;
 		constexpr unsigned int taskPriority = 1;
 	}
 }

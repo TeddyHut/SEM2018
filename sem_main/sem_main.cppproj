@@ -1020,6 +1020,15 @@
     <Compile Include="run.h">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="runcommon.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="rundisplay.cpp">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="rundisplay.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="runmanagement.cpp">
       <SubType>compile</SubType>
     </Compile>

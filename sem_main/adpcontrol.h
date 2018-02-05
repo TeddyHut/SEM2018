@@ -7,6 +7,8 @@
 
 #pragma once
 #include "run.h"
+#include <task.h>
+#include <semphr.h>
 #include <adp.h>
 #include <usart.h>
 #include <usart_interrupt.h>
@@ -20,5 +22,12 @@ public:
 	Task *complete(Input const &input) override;
 	ADPControl();
 private:
-	
+	static void taskFunction(void *const adpcontrol);
+	void fillInputAddresses(void *values[]);
+	void task_main();
+	void setupDashboard();
+	void setupGraph();
+	Input localinput;
+	TaskHandle_t task;
+	TaskIdentity lastTask = TaskIdentity::None;
 };

@@ -9,16 +9,32 @@
 #include "run.h"
 #include "instance.h"
 #include "dep_instance.h"
+#include "adpcontrol.h"
+#include "util.h"
 #include <rtc_count.h>
 #include <cmath>
 #include <bitset>
 #include <task.h>
+#include <adc.h>
 
 using namespace Run;
 
+constexpr float current_opamp_transformation_outV_motor(float const inV, float const vcc) {
+	return (inV * ((5.1 * (2 * (1 + 5.1) + 10)) / ((1 + 5.1) * (2 * 1 + 10)))) - (vcc * (5.1 / (2 * 1 + 10)));
+}
+
+constexpr float current_opamp_transformation_inV_motor(float const outV, float const vcc) {
+	return (outV + (vcc * (5.1 / (2 * 1 + 10)))) / ((5.1 * (2 * (1 + 5.1) + 10)) / ((1 + 5.1) * (2 * 1 + 10)));
+}
+
 constexpr float driveIntervalToMs(float const interval) {
+	if(interval <= 0)
+		return 0;
 	float const sec_interval = (interval / config::motor::clockFrequency);
-	return (config::hardware::wheelradius * 2 * M_PI * sec_interval) * 8;
+	//Speed = distance / time
+	//Distance = circumference / 8
+	//Time = sec_interval
+	return ((config::hardware::wheelradius * 2 * M_PI) / 8) / sec_interval;
 }
 
 //Prevents noise/button hardware error on the OP presence button
@@ -50,16 +66,62 @@ void initRTC() {
 	rtc_count_enable(&rtc_instance);
 }
 
+adc_module adc_instance;
+
+void initADC() {
+	adc_config config;
+	adc_get_config_defaults(&config);
+	config.clock_source = GCLK_GENERATOR_1;
+	config.clock_prescaler = ADC_CLOCK_PRESCALER_DIV8;
+	config.reference = ADC_REFERENCE_INTVCC1;
+	config.resolution = ADC_RESOLUTION_12BIT;
+	config.gain_factor = ADC_GAIN_FACTOR_1X;
+	config.negative_input = ADC_NEGATIVE_INPUT_GND;
+	//config.accumulate_samples = ADC_ACCUMULATE_SAMPLES_4;
+	//config.divide_result = ADC_DIVIDE_RESULT_4;
+	config.left_adjust = false;
+	config.differential_mode = false;
+	config.freerunning = false;
+	config.reference_compensation_enable = false;
+	config.sample_length = 16;
+	adc_init(&adc_instance, ADC, &config);
+	adc_enable(&adc_instance);
+}
+
+enum class MotorIndex {
+	Motor0,
+	Motor1,
+};
+
+float get_motor_current(MotorIndex const index) {
+	if(index == MotorIndex::Motor0) {
+		adc_set_positive_input(&adc_instance, ADC_POSITIVE_INPUT_PIN1);
+	}
+	else if (index == MotorIndex::Motor1) {
+		adc_set_positive_input(&adc_instance, ADC_POSITIVE_INPUT_PIN0);
+	}
+	adc_start_conversion(&adc_instance);
+	uint16_t result = 0;
+	while(adc_read(&adc_instance, &result) == STATUS_BUSY);
+	volatile float opamp_outV = adcutil::adc_voltage<uint16_t, 4096>(result, (1.0f / 1.48f) * 3.3f);
+	volatile float opamp_inV = current_opamp_transformation_inV_motor(opamp_outV, 3.3f);
+	volatile float current = acs711_current(opamp_inV, 3.3f);
+	return current;
+	//return 0;
+}
+
 void fillInput(Input &input, Output const &prevOutput) {
 	static ButtonBuffer opBuffer;
 	//Get difference in time since last cycle
-	double timeDifference = (rtc_count_get_count(&rtc_instance) / 1024.0f) - input.time;
+	float timeDifference = (rtc_count_get_count(&rtc_instance) / 1024.0f) - input.time;
 	input.time += timeDifference;
 
 	//Time based calculations
 	input.distance += input.vehicleSpeed * timeDifference;
 	//Energy in W/s (joules) / 3600 to get W/h
-	input.totalEnergyUsage += (((input.bms0data.current * input.bms0data.voltage) + (input.bms1data.current * input.bms1data.voltage)) * timeDifference) / 3600.0f;
+	//input.totalEnergyUsage += (((input.bms0data.current * input.bms0data.voltage) + (input.bms1data.current * input.bms1data.voltage)) * timeDifference) / 3600.0f;
+	//This for when only one BMS is working
+	input.totalEnergyUsage += (((input.bms1data.current * input.bms1data.voltage) + (input.bms1data.current * input.bms1data.voltage)) * timeDifference) / 3600.0f;
 	input.motor0EnergyUsage += (input.motor0Current * input.voltage * timeDifference) / 3600.0f;
 	input.motor1EnergyUsage += (input.motor1Current * input.voltage * timeDifference) / 3600.0f;
 
@@ -74,13 +136,14 @@ void fillInput(Input &input, Output const &prevOutput) {
 	input.bms1data = runtime::bms1->get_data();
 	input.motor0Speed = runtime::encoder0->getSpeed();
 	input.motor1Speed = runtime::encoder1->getSpeed();
+	input.motor0Current = get_motor_current(MotorIndex::Motor0);
+	input.motor1Current = get_motor_current(MotorIndex::Motor1);
 	input.driveSpeed = runtime::encoder2->getSpeed();
 	input.opState = opBuffer.pressed(!runtime::opPresence->state());
 
 	//Sensor calculations
 	input.voltage = input.bms0data.voltage + input.bms1data.voltage;
-	input.vehicleSpeed = driveIntervalToMs(runtime::encoder2->getSpeed());
-	//input.vehicleSpeed = msToKmh(driveIntervalToMs(runtime::encoder2->getAverageInterval()));
+	input.vehicleSpeed = driveIntervalToMs(runtime::encoder2->getAverageInterval());
 }
 
 void processOutput(Output const &output) {
@@ -109,6 +172,8 @@ void mergeOutput(Output &dest, Output const &src) {
 void runmanagement::run()
 {
 	initRTC();
+	initADC();
+	Run::init();
 	Display disp;
 	Input input;
 	Output output;
@@ -117,12 +182,16 @@ void runmanagement::run()
 	Task *batteryCheck = new (pvPortMalloc(sizeof(BatteryCheck))) BatteryCheck;
 	Task *motorCheck = new (pvPortMalloc(sizeof(MotorCheck))) MotorCheck;
 
+	//ADPControl adpcontrol;
+	//adpcontrol.init();
+
 	currentTask->displayUpdate(disp);
 	TickType_t previousWakeTime = xTaskGetTickCount();
 	TickType_t displayUpdateTime = xTaskGetTickCount();
 	while(true) {
 		fillInput(input, output);
-		mergeOutput(output, currentTask->update(input));
+		input.currentID = currentTask->id;
+		//mergeOutput(output, currentTask->update(input));
 		Task *returnTask = currentTask->complete(input);
 		//Current task should be changed
 		if(returnTask != nullptr) {
@@ -136,13 +205,14 @@ void runmanagement::run()
 			mergeOutput(output, element->update(input));
 			element->displayUpdate(disp);
 		}
-		processOutput(output);
+		//processOutput(output);
 		//Reset change flags
 		output.output.reset();
 		//Print display
 		if(xTaskGetTickCount() - displayUpdateTime >= config::run::displayrefreshrate) {
 			displayUpdateTime = xTaskGetTickCount();
 			disp.printDisplay(input);
+			//mergeOutput(output, adpcontrol.update(input));
 		}
 		//Set an external LED if the person isn't holding the OP
 		runtime::greenLED->setLEDState(!input.opState);

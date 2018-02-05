@@ -22,15 +22,15 @@ void tcc2_overflow_callback(tcc_module *const module) {
 }
 
 void event_motor0_callback() {
-	Encoder0::compare(tcc_get_count_value(&tccEncoder::instance));
+	Encoder0::compare(Encoder0::getCounterValue());
 }
 
 void event_motor1_callback() {
-	Encoder1::compare(tcc_get_count_value(&tccEncoder::instance));
+	Encoder1::compare(Encoder1::getCounterValue());
 }
 
 void event_wheel_callback() {
-	Encoder2::compare(tcc_get_count_value(&tccEncoder::instance));
+	Encoder2::compare(Encoder2::getCounterValue());
 }
 
 void EVSYS_Handler() {
@@ -147,7 +147,8 @@ void tccEncoder::init()
 	//---Init TCC2 (motor0 and motor1)---
 	tcc_config config;
 	tcc_get_config_defaults(&config, TCC2);
-	config.capture.channel_function[0] = TCC_CHANNEL_FUNCTION_CAPTURE;
+	//Compare is used for SpeedMatch update, to get higher refresh rate
+	config.capture.channel_function[0] = TCC_CHANNEL_FUNCTION_COMPARE;
 	config.counter.clock_prescaler = ::config::encoder::prescaeSetting;
 	config.counter.clock_source = ::config::encoder::clockSource;
 	config.counter.direction = TCC_COUNT_DIRECTION_UP;

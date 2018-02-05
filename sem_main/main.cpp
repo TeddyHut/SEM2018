@@ -66,8 +66,8 @@ void main_task(void *const param) {
 	runtime::servo0->setPosition(config::run::servo0restposition);
 	runtime::servo1->setPosition(config::run::servo1restposition);
 
-	//ManualSerial manserial;
-	//manserial.init();
+	ManualSerial manserial;
+	manserial.init();
 	
 	TimerHandle_t aliveBlink_timer = xTimerCreate("aliveBlink", msToTicks(5000), pdTRUE, 0, activeCallback);
 	xTimerStart(aliveBlink_timer, portMAX_DELAY);

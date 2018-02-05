@@ -18,6 +18,14 @@ namespace bmsstatic {
 	void init();
 }
 
+constexpr float acs711_outV(float const current, float const vcc) {
+	return (current * ((vcc - 0.6f) / (12.5f * 2.0f))) + (vcc / 2);
+}
+
+constexpr float acs711_current(float const outV, float const vcc) {
+	return ((12.5f * 2.0f) / (vcc - 0.6f)) * (outV - (vcc / 2.0f));
+}
+
 class BMS {
 public:
 	struct Data {

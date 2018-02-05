@@ -58,22 +58,12 @@ namespace {
 		return milliVoltsToDegreesC(vdiv_input(adc_voltage<uint16_t, 1024>(value, 1.1f), vdiv_factor(5.1f, 7.5f)) * 1000.0f);
 	}
 
-	constexpr float current_outV_error(float const vcc) {
-		return (0.015914 * vcc) - 0.03719;
-	}
-	
-	constexpr float current_outV(float const current, float const vref) {
-		return (current * ((vref - 0.6f) / (12.5f * 2.0f))) - current_outV_error(vref);
+	constexpr float current_opamp_transformation_outV_bms(float const inV, float const vcc) {
+		return (inV * (5.0f / 6.0f)) - (vcc / 3.0f);
 	}
 
-	constexpr float current_current(float const outV, float const vref) {
-		float m = ((vref - 0.6f) / (12.5f * 2.0f));
-		return (outV + current_outV_error(vref)) / m;
-	}
-
-	//Gets the current from the result of the current conversion
-	constexpr float calculateCurrent(uint16_t const value, float const vref) {
-		return current_current(adc_voltage<uint16_t, 1024>(value, 1.5f), vref);
+	constexpr float current_opamp_transformation_inV_bms(float const outV, float const vcc) {
+		return (6.0f / 5.0f) * (outV + (vcc / 3.0f));
 	}
 
 	template <typename buffer_t>
@@ -158,17 +148,23 @@ void BMS::task_main()
 		bmsdata.cellVoltage[0] = vdiv_input(adc_voltage<uint16_t, 1024>(retreiveFromBuffer(recvbuf, DataIndexes::Cell0ADC), 2.5f), vdiv_factor(10, 5.6));
 		//Pretty bad way of checking connection... whatever
 		bmsdata.connected = bmsdata.cellVoltage[0] > 1.0f;
+
 		volatile float vcc = bmsdata.cellVoltage[0];
-		volatile uint16_t f_adc = retreiveFromBuffer(recvbuf, DataIndexes::CurrentADC);
-		volatile float f_outV = adc_voltage<uint16_t, 1024>(f_adc, 1.5f);
-		volatile float current = current_current(f_outV, vcc);
-		//bmsdata.current = calculateCurrent(currentValue, bmsdata.cellVoltage[0]);
-		for(unsigned int i = 1; i < 6; i++) {
+		volatile uint16_t current_adc = retreiveFromBuffer(recvbuf, DataIndexes::CurrentADC);
+		volatile float opamp_outV = adc_voltage<uint16_t, 1024>(current_adc, 1.1f);
+		volatile float opamp_inV = current_opamp_transformation_inV_bms(opamp_outV, vcc);
+		bmsdata.current = acs711_current(opamp_inV, vcc);
+		for(unsigned int i = DataIndexes::Cell1ADC; i < DataIndexes::_size; i++) {
+			volatile uint16_t adcVal = retreiveFromBuffer(recvbuf, static_cast<DataIndexes::e>(i));
 			//These use op amps which is why it's just 5.6 / 10
-			bmsdata.cellVoltage[i] = vdiv_input(adc_voltage<uint16_t, 1024>(retreiveFromBuffer(recvbuf, static_cast<DataIndexes::e>(i)), 2.5f), 5.6f / 10.0f);
+			bmsdata.cellVoltage[i - DataIndexes::Cell1ADC + 1] = vdiv_input(adc_voltage<uint16_t, 1024>(adcVal, 2.5f), 5.6f / 10.0f);
 		}
 		//Calculate total voltage from cell voltages
-		bmsdata.voltage = std::accumulate(bmsdata.cellVoltage.begin(), bmsdata.cellVoltage.end(), 0);
+		volatile float total = 0;
+		for(unsigned int i = 0; i < bmsdata.cellVoltage.size(); i++) {
+			total += bmsdata.cellVoltage[i];
+		}
+		bmsdata.voltage = total;
 		xSemaphoreGive(mtx_bmsdata);
 		vTaskDelayUntil(&previousWakeTime, config::bms::refreshRate);
 	}
@@ -211,6 +207,7 @@ void BMS::Data::make_copy(Data const &p)
 	connected = p.connected;
 	temperature = p.temperature;
 	current = p.current;
+	voltage = p.voltage;
 	std::copy(p.cellVoltage.begin(), p.cellVoltage.end(), cellVoltage.begin());
 }
 

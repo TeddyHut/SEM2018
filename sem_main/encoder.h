@@ -53,17 +53,19 @@ Ticker<T, s>::Ticker()
 template <typename T, size_t s /*= config::encoder::bufferSize*/>
 T Ticker<T, s>::getAverageInterval() const
 {
+	T result = 0;
 	if(!filled) {
 		//Prevent divide by zero error
 		if(itr == 0) return 0;
-		return std::accumulate(buffer.begin(), buffer.begin() + itr, 0) / std::distance(buffer.begin(), buffer.begin() + itr);
+		result = std::accumulate(buffer.begin(), buffer.begin() + itr, 0) / std::distance(buffer.begin(), buffer.begin() + itr);
 	}
-	T total = 0;
-	if(itr != 0) {
-		total = std::accumulate(buffer.begin() + itr, buffer.end(), 0);
-		return std::accumulate(buffer.begin(), buffer.begin() + itr, total) / buffer.size();
+	else if(itr != 0) {
+		result = std::accumulate(buffer.begin(), buffer.begin() + itr,
+			std::accumulate(buffer.begin() + itr, buffer.end(), 0)) / buffer.size();
 	}
-	return std::accumulate(buffer.begin(), buffer.end(), 0) / buffer.size();
+	else
+		result = std::accumulate(buffer.begin(), buffer.end(), 0) / buffer.size();
+	return result;
 }
 
 template <typename T, size_t s /*= config::encoder::*/>
@@ -84,8 +86,9 @@ public:
 	static void compare(counter_t const value);
 	float getSpeed() const override;
 	float getAverageInterval() const override;
+	static counter_t getCounterValue();
 	TimerEncoder(convert_t const convertfn);
-private:
+protected:
 	static TimerEncoder *current;
 	convert_t convertfn;
 	Ticker<counter_t> ticker;
@@ -93,10 +96,21 @@ private:
 	counter_t start = 0;
 };
 
+//Should probably put this in a specialised subclass, but they all share the same timer so whatever
+template <size_t n, typename counter_t /*= unsigned int*/>
+counter_t TimerEncoder<n, counter_t>::getCounterValue()
+{
+	return tcc_get_count_value(&tccEncoder::instance);
+}
+
 template <size_t n, typename counter_t /*= unsigned int*/>
 float TimerEncoder<n, counter_t>::getAverageInterval() const 
 {
-	return ticker.getAverageInterval();
+	//Get whichever is higher: The average time or the time since the last tick
+	auto rtrnTime = std::max(ticker.getAverageInterval(), getCounterValue() + total - start);
+	if(rtrnTime >= config::encoder::zerotimeout)
+		return 0;
+	return rtrnTime;
 }
 
 template <size_t n, typename counter_t /*= size_t*/>
@@ -122,7 +136,7 @@ void TimerEncoder<n, counter_t>::overflow(counter_t const amount /*= 0x00ffffff*
 template <size_t n, typename counter_t>
 float TimerEncoder<n, counter_t>::getSpeed() const
 {
-	return(convertfn(ticker.getAverageInterval()));
+	return(convertfn(getAverageInterval()));
 }
 
 template <size_t n, typename counter_t /*= size_t*/>

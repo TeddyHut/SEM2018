@@ -79,12 +79,12 @@ void ManualSerial::task_main()
 		runtime::motor1->setDutyCycle(getFromBuffer(buffer, 1) / static_cast<float>(0xffff));
 		runtime::servo0->setPosition(getFromBuffer(buffer, 2) - 180);
 		runtime::servo1->setPosition(getFromBuffer(buffer, 3) - 180);
-		memset(str, ' ', 16);
-		runtime::viewerboard->setPosition(0);
-		snprintf(str, 16, "%7.0f %7.0f", runtime::encoder0->getSpeed(), runtime::encoder1->getSpeed());
-		runtime::viewerboard->writeText(str, 16);
-		runtime::viewerboard->setPosition(40);
-		snprintf(str, 16, "%7.0f %f", runtime::encoder2->getSpeed(), runtime::encoder0->getSpeed() / runtime::encoder2->getSpeed());
-		runtime::viewerboard->writeText(str, 16);
+		//memset(str, ' ', 16);
+		//runtime::viewerboard->setPosition(0);
+		//snprintf(str, 16, "%7.0f %7.0f", runtime::encoder0->getSpeed(), runtime::encoder1->getSpeed());
+		//runtime::viewerboard->writeText(str, 16);
+		//runtime::viewerboard->setPosition(40);
+		//snprintf(str, 16, "%7.0f %f", runtime::encoder2->getSpeed(), runtime::encoder0->getSpeed() / runtime::encoder2->getSpeed());
+		//runtime::viewerboard->writeText(str, 16);
 	}
 }

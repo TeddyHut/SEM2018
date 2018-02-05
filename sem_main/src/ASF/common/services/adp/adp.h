@@ -49,6 +49,10 @@
 
 #include <compiler.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /** Version of ADP implemented here */
 #define ADP_VERSION                 1
 
@@ -58,7 +62,7 @@
 /** Maximum number of streams from PC to target */
 #define ADP_MAX_INCOMMING_STREAMS   5
 /** Maximum number of streams from target to PC */
-#define ADP_MAX_OUTGOING_STREAMS    5
+#define ADP_MAX_OUTGOING_STREAMS    20
 
 /** Maximum number of bytes target can request from PC in one request */
 #define ADP_MAX_BYTE_REQUEST        20
@@ -67,7 +71,8 @@
 #define ADP_LENGTH_PACKET_HEADER    4
 
 /** Maximum number of bytes in data part of ADP packet */
-#define ADP_MAX_PACKET_DATA_SIZE    254
+//Was 254
+#define ADP_MAX_PACKET_DATA_SIZE    128
 
 /** Maximum number of all bytes in ADP packet */
 #define  ADP_MAX_PACKET_LENGTH (ADP_LENGTH_PACKET_HEADER + ADP_MAX_PACKET_DATA_SIZE)
@@ -418,7 +423,7 @@ SHORTENUM struct adp_msg_add_stream_to_axis {
 	uint32_t y_offset;
 	/* Adjust the transparency */
 	uint8_t transparency;
-	/* For graphs:  bit 0 = line on/off
+	/* For graphs:  bit 0 = line on/off	
 	 *              bit 1 = points on/off
 	 * For text:    bit 0 = flag
 	 *              bit 1 = text
@@ -940,4 +945,8 @@ bool adp_transceive_single_stream(uint16_t stream_id, uint8_t* data, uint8_t dat
 void adp_init(void);
 uint16_t adp_add_send_byte(uint8_t* buffer, uint8_t index, uint8_t* data, uint16_t length);
 
+#endif
+
+#ifdef __cplusplus
+}
 #endif
