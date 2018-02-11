@@ -17,6 +17,7 @@
 #include "dep_instance.h"
 #include "manualserial.h"
 #include "runmanagement.h"
+#include "emc1701.h"
 
 void buzzerStartup(Buzzer &buz) {
 	for(uint8_t i = 0; i < 2; i++) {

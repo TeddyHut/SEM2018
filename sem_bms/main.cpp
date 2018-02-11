@@ -6,7 +6,7 @@
  */ 
 
 #include <avr/io.h>
-#include <avr/interrupt.h>
+#include <avr/interrupt.h>	
 #include <avr/sleep.h>
 #include <stdlib.h>
 #include <math.h>
@@ -19,13 +19,18 @@
 #define ERROR_OFFSET_TEMPERATURE 0
 #elif (BMS_NUMBER == 1)
 #define ERROR_OFFSET_CURRENT 1
-#define ERROR_OFFSET_VCC 7
+#define ERROR_OFFSET_VCC 4
 #define ERROR_OFFSET_TEMPERATURE 0
 #endif
 
 constexpr float CutoffCurrent = 5;
 constexpr float CutoffTemperature = 100;
 constexpr float CutoffVoltage = 3;
+constexpr unsigned int Keepalive_maxCycles = 50; //For 10ms ISR updates this should be 500ms.
+//Number of cycles that there has to be an error for before firing
+constexpr unsigned int ConsecutiveErrors = 10;
+//The number of cycles after firing the relay before stopping current flow through the relay
+constexpr unsigned int RelayTimeout_cycles = 50;
 
 constexpr float vdiv_factor(float const r1, float const r2) {
 	return r2 / (r1 + r2);
@@ -75,6 +80,14 @@ constexpr float current_opamp_transformation_inV(float const outV, float const v
 	return (6.0f / 5.0f) * (outV + (vcc / 3.0f));
 }
 
+//Used to store what triggered the error
+enum class Trigger : uint8_t {
+	None = 0,
+	Current,
+	Voltage,
+	Temperature,
+} volatile trigger = Trigger::None;
+
 enum class Instruction : uint8_t {
 	Normal = 0,
 	ReceiveData,
@@ -111,13 +124,19 @@ volatile uint8_t dataBuffer[2][static_cast<unsigned int>(DataIndexes::_size) * 2
 volatile uint8_t dataBufferPos = 0;
 volatile uint8_t dataBufferChoice = 0;
 
+//Number of cycles of the timer ISR
+uint32_t totalCycles = 0;
+//Used to determine whether main board is still communicating.
+unsigned int keepalive_cycles = 0;
+//Used so that current doesn't have to constantly be flowing through relay if it is triggered
+unsigned int relaytimeout_cycles = 50;
+
+//Set to true if the relay is fired. Used to determine whether or not setBlinkingLEDState should work or not (LED should be permanently on if relay fired)
+bool relay_fired = false;
+
 uint16_t retreiveFromBuffer(volatile uint8_t const buffer[], DataIndexes const pos) {
 	return (buffer[static_cast<unsigned int>(pos) * 2] |
 	(buffer[static_cast<unsigned int>(pos) * 2 + 1] << 8));
-}
-
-void fireRelay() {
-	PORTA.OUTSET = 1 << 5;
 }
 
 void setLEDState(bool const state) {
@@ -125,8 +144,79 @@ void setLEDState(bool const state) {
 	else PORTB.OUTCLR = 1 << 0;
 }
 
+void setLEDBlinkingState(bool const state) {
+	if(relay_fired == false) {
+		if(state) {
+			TCA0.SINGLE.CTRLA |= TCA_SINGLE_ENABLE_bm;
+			TCA0.SINGLE.CTRLB |= TCA_SINGLE_CMP0_bm;
+		}
+		else {
+			TCA0.SINGLE.CTRLA &= ~TCA_SINGLE_ENABLE_bm;
+			TCA0.SINGLE.CTRLB &= ~TCA_SINGLE_CMP0_bm;
+		}
+	}
+}
+
+void setRelayState(bool const state) {
+	if(state && !relay_fired) {
+		PORTA.OUTSET = 1 << 5;
+		setLEDBlinkingState(false);
+		setLEDState(true);
+	}
+	else if (!state) {
+		PORTA.OUTCLR = 1 << 5;
+		setLEDState(false);
+	}
+	relay_fired = state;
+}
+
+void relayAssert(bool const result, Trigger const cause) {
+	//Check that for the buffer the functions are being called from separate cycles (as opposed to multiple from the same cycle)
+	static uint32_t lastCycle = 0;
+	static unsigned int consecutiveErrors = 0;
+	static bool wasSetLastCycle = false;
+
+	if(lastCycle != totalCycles) {
+		//A new cycle
+		if(wasSetLastCycle && (++consecutiveErrors == ConsecutiveErrors)) {
+			trigger = cause;
+			relaytimeout_cycles = RelayTimeout_cycles;
+			setRelayState(true);
+		}
+		else if (wasSetLastCycle == false)
+			consecutiveErrors = 0;
+		wasSetLastCycle = false;
+		lastCycle = totalCycles;
+	}
+	wasSetLastCycle |= !result;
+}
+
+void button_update() {
+	//pullup, so values are inverted
+	static bool previousState = true;
+	bool currentState = PORTB.IN & (1 << 3);
+	//If the button was released, reset the relay state
+	if(previousState == false && currentState == true) {
+		setRelayState(false);
+	}
+	previousState = currentState;
+}
+
 //Interrupt where things are sampled (regular, every 10ms)	
 ISR(TCB0_INT_vect) {
+	totalCycles++;
+	if(++keepalive_cycles >= Keepalive_maxCycles) {
+		setLEDBlinkingState(true);
+		//Such bad code
+		keepalive_cycles--;
+	}
+	else
+		setLEDBlinkingState(false);
+	if(relaytimeout_cycles != 0) {
+		if(--relaytimeout_cycles == 0)
+			PORTA.OUTCLR = (1 << 5);
+	}
+	button_update();
 	//Clear the interrupt flag
 	TCB0.INTFLAGS = TCB_CAPT_bm;
 	//Sample each ADC
@@ -165,28 +255,23 @@ ISR(TCB0_INT_vect) {
 	volatile float current = acs711_current(acs711OutV, vcc);
 	volatile float temperature = calculateTemperature(retreiveFromBuffer(dataBuffer[bufferChoice], DataIndexes::TemperatureADC));
 	//Make sure that VCC is still high enough
-	//if(vcc <= CutoffVoltage)
-	//	fireRelay();
-	////Make sure that there is no over-current
-	//if(current >= CutoffCurrent)
-	//	fireRelay();
+	relayAssert(vcc > CutoffVoltage, Trigger::Voltage);
+	//Make sure that all the other cells are still high enough
+	for(uint8_t i = 0; i < 5; i++) {
+		volatile uint16_t adc_val = retreiveFromBuffer(dataBuffer[bufferChoice], static_cast<DataIndexes>(i + static_cast<uint8_t>(DataIndexes::Cell1ADC)));
+		volatile float voltage = vdiv_input(adc_voltage<uint16_t, 1024>(adc_val, 2.5f), 5.6f / 10.0f);
+		relayAssert(voltage > CutoffVoltage, Trigger::Voltage);
+	}
+	//Make sure that there is no over-current
+	relayAssert(current < CutoffCurrent, Trigger::Current);
 	//Check the temperature
-	//if(temperature >= CutoffTemperature)
-	//	fireRelay();
+	//relayAssert(temperature < CutoffTemperature);
 	dataBufferChoice = bufferChoice;
 }
 
 //SPI interrupt
 ISR(SPI0_INT_vect) {
-	PORTB.OUTSET = (1 << 1);
-	static bool ledOn = true;
-	if(ledOn) {
-		//Disable TCA0 and turn off LED
-		TCA0.SINGLE.CTRLA &= ~TCA_SINGLE_ENABLE_bm;
-		TCA0.SINGLE.CTRLB &= ~TCA_SINGLE_CMP0_bm;
-		setLEDState(false);
-		ledOn = false;
-	}
+	keepalive_cycles = 0;
 	if(SPI0.INTFLAGS & SPI_RXCIF_bm) {
 		uint8_t const data = SPI0.DATA;
 		switch(static_cast<Instruction>(data)) {
@@ -197,10 +282,9 @@ ISR(SPI0_INT_vect) {
 			if(dataBufferPos >= static_cast<unsigned int>(DataIndexes::_size) * 2)
 				dataBufferPos = 0;
 			SPI0.DATA = dataBuffer[dataBufferChoice][dataBufferPos++];
-			PORTB.OUTCLR = (1 << 1);
 			break;
 		case Instruction::FireRelay:
-			fireRelay();
+			setRelayState(true);
 			break;
 		case Instruction::LEDOn:
 			setLEDState(true);
@@ -240,23 +324,6 @@ void setup() {
 	//Button
 	PORTB.PIN3CTRL = PORT_PULLUPEN_bm;
 
-	/*
-	//Set DAC reference voltage
-	VREF.CTRLA = VREF_DAC0REFSEL_1V5_gc;
-
-	//Set DAC output voltage (will be calculated based on VCC later)
-	DAC0.DATA = 0xff;
-	//Setup DAC
-	DAC0.CTRLA = DAC_RUNSTDBY_bm | DAC_ENABLE_bm;
-	*/
-
-	/*
-	//Setup AC muxes (P0 for positive, DAC for negative)
-	AC0.MUXCTRLA = AC_MUXPOS_PIN0_gc | AC_MUXNEG_DAC_gc;
-	//Setup AC (run in standby, enable output, low power mode, enable)
-	AC0.CTRLA = AC_RUNSTDBY_bm | AC_OUTEN_bm | AC_LPMODE_EN_gc | AC_ENABLE_bm;
-	*/
-
 	//Take accumulated samples
 	ADC0.CTRLB = ADC_SAMPNUM_ACC1_gc;
 	//Increase capacitance and prescale
@@ -288,6 +355,7 @@ void setup() {
 	static_assert(TCA0Top <= 0xffff, "TCA0 top too large");
 	constexpr uint32_t TCA0Compare = static_cast<uint32_t>((20000000 / 1024) / 10);
 	static_assert(TCA0Compare <= 0xffff, "TCA0Compare too large");
+	//setLEDBlinkingState will switch TCA_SINGLE_CMP0_bm and TCA_SINGLE_ENABLE_bm
 	TCA0.SINGLE.CTRLB = TCA_SINGLE_CMP0_bm | TCA_SINGLE_WGMODE_SINGLESLOPE_gc;
 	TCA0.SINGLE.PER = TCA0Top;
 	TCA0.SINGLE.CMP0 = TCA0Compare;

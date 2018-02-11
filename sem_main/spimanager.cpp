@@ -13,7 +13,8 @@
 void SPIManager::addJob(Job const &job)
 {
 	if(xQueueSendToBack(que_pendingJobs, &job, 0) == errQUEUE_FULL) {
-		//Some sort of error here
+		//Run non-critical error
+		//warning();
 	}
 }
 
@@ -32,6 +33,7 @@ void SPIManager::taskFunction(void *spimanager)
 
 void SPIManager::task_main()
 {
+	//Wait for child to finish initializing
 	ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 	while(true) {
 		Job job;
@@ -52,6 +54,7 @@ void SPIManager0::init()
 	spi_get_config_defaults(&config);
 	config.character_size = SPI_CHARACTER_SIZE_8BIT;
 	config.data_order = SPI_DATA_ORDER_MSB;
+	//Not sure why this is generator 4? TODO: Check
 	config.generator_source = GCLK_GENERATOR_4;
 	config.master_slave_select_enable = false;
 	config.mode = SPI_MODE_MASTER;

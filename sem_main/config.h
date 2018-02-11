@@ -164,6 +164,12 @@ namespace config {
 		constexpr unsigned int taskPriority = 1;
 		constexpr size_t pendingQueueSize = 2;
 	}
+	namespace twimanager {
+		constexpr char const * taskName = "TWIManager";
+		constexpr uint16_t taskStackDepth = 64;
+		constexpr unsigned int taskPriority = 1;
+		constexpr size_t pendingQueueSize = 2;
+	}
 	namespace led {
 		constexpr unsigned int greenLED_pin = PIN_PA28;
 		constexpr unsigned int redLED_pin = PIN_PA27;
