@@ -64,10 +64,10 @@ constexpr float msToKmh(float const ms) {
 
 namespace config {
 	namespace run {
- 		constexpr float servo0restposition = 0;
-		constexpr float servo0engagedposition = -113;
-		constexpr float servo1restposition = -180;
-		constexpr float servo1engagedposition = 8;
+ 		constexpr float servo0restposition = 72;
+		constexpr float servo0engagedposition = 86;
+		constexpr float servo1restposition = 105;
+		constexpr float servo1engagedposition = 91;
 
 		constexpr float minimumspeed = kmhToMs(22);
 		constexpr float maximumspeed = kmhToMs(28);
@@ -104,13 +104,24 @@ namespace config {
 		constexpr unsigned int taskPriority = 1;
 	}
 	namespace servo {
-		constexpr float clockFrequency = 48000000;
+		constexpr float clockFrequency = 39999900;
+		//48000000;
 		constexpr float period = 0.02;
+		constexpr float servominpulse = 0.000544;
+		constexpr float servomaxpulse = 0.0024;
+		constexpr float midpoint0 = ((servomaxpulse + servominpulse) / 2.0f);
+		constexpr float deviation0 = ((servomaxpulse - servominpulse) / 2.0f);
+		constexpr float midpoint1 = ((servomaxpulse + servominpulse) / 2.0f);
+		constexpr float deviation1 = ((servomaxpulse - servominpulse) / 2.0f);
+		
+		//For old servos:
+		/*
 		constexpr float midpoint0 = ((0.00155 + 0.001125) / 2.0f);
 		constexpr float deviation0 = ((0.00155 - 0.001125) / 2.0f);
 		constexpr float midpoint1 = ((0.0008 + 0.00048) / 2.0f);
 		constexpr float deviation1 =((0.0008 - 0.00048) / 2.0f);
-		constexpr float minAngle = -180;
+		*/
+		constexpr float minAngle = 0;
 		constexpr float maxAngle = 180;
 		constexpr float restAngle = 0;
 		constexpr float engagedAngle = 0;
