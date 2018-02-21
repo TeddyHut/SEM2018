@@ -6,7 +6,7 @@
  */ 
 
 #include <avr/io.h>
-#include <avr/interrupt.h>	
+#include <avr/interrupt.h>
 #include <avr/sleep.h>
 #include <stdlib.h>
 #include <math.h>
@@ -207,7 +207,7 @@ ISR(TCB0_INT_vect) {
 	totalCycles++;
 	if(++keepalive_cycles >= Keepalive_maxCycles) {
 		setLEDBlinkingState(true);
-		//Such bad code
+		//Such bad code, to prevent overflow
 		keepalive_cycles--;
 	}
 	else
@@ -222,7 +222,8 @@ ISR(TCB0_INT_vect) {
 	//Sample each ADC
 	uint8_t const bufferChoice = (dataBufferChoice == 0 ? 1 : 0);
 	for(uint8_t i = 0; i < static_cast<unsigned int>(DataIndexes::_size); i++) {
-		//Different depending on the refernce voltage
+		//Different depending on the reference voltage, and also different depending on the board
+		//TODO: Self calibrate
 		int errorOffset = 0;
 		//Clear and set reference voltages
 		VREF.CTRLA &= ~VREF_ADC0REFSEL_gm;
@@ -305,7 +306,7 @@ void setup() {
 	PORTC.DIR = 0b00000010;
 	//Don't switch relay yet
 	PORTA.OUTCLR = 1 << 5;
-	//Diable CCP protection of clock registers (works for 4 instructions)
+	//Disable CCP protection of clock registers (works for 4 instructions)
 	CCP = CCP_IOREG_gc;
 	//Enable main clock as 20Mhz osc
 	CLKCTRL.MCLKCTRLA |= CLKCTRL_CLKSEL_OSC20M_gc;
