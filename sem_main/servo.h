@@ -60,7 +60,7 @@ struct TCCServoStaticConfig {
 			{static_cast<unsigned int>(TCC_CLOCK_PRESCALER_DIV64), 64},
 			{static_cast<unsigned int>(TCC_CLOCK_PRESCALER_DIV256), 256},
 			{static_cast<unsigned int>(TCC_CLOCK_PRESCALER_DIV1024), 1024}};
-		for(size_t i = 0; i < 8 * 2; i++) {
+		for(size_t i = 0; i < (8 * 2); i++) {
 			if((clockTicksPerPeriod / prescaleValues[i / 2][1]) <= t_max) {
 				prescaleQuotient = prescaleValues[i / 2][1];
 				prescaleSetting = static_cast<tcc_clock_prescaler>(prescaleValues[i / 2][0]);
