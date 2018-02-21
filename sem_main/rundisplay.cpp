@@ -53,7 +53,7 @@ void Run::DL_Battery::get_text(char str[], Input const &input)
 		rpl_snprintf(str, 17, "BC1 %4.2f C2 %4.2f", input.bms0data.current, input.bms1data.current);
 		break;
 		case Cycle::Voltage:
-		rpl_snprintf(str, 17, "BV1 %#4.2f V2 %#4.2f", input.bms0data.voltage, input.bms1data.voltage);
+		rpl_snprintf(str, 17, "BV1 %#4.1f V2 %#4.1f", input.bms0data.voltage, input.bms1data.voltage);
 		break;
 		case Cycle::AvgCellVoltage:
 		rpl_snprintf(str, 17, "BA1 %#4.2f A2 %#4.2f", input.bms0data.voltage / input.bms0data.cellVoltage.size(), input.bms1data.voltage / input.bms1data.cellVoltage.size());
