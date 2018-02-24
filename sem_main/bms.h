@@ -34,6 +34,8 @@ public:
 		float current = 0;
 		float voltage = 0;
 		std::array<float, 6> cellVoltage{6};
+
+		//These should be necessary with std::array. TODO: Remove
 		Data() = default;
 		Data(Data const &p);
 		Data(Data &&p);
@@ -52,7 +54,7 @@ public:
 
 	void setLEDState(bool const state);
 
-	void init(uint8_t const pin, size_t const refreshRate = config::bms::refreshRate);
+	void init(SPIManager *const spiManager, uint8_t const pin, size_t const refreshRate = config::bms::refreshRate);
 private:
 	static void taskFunction(void *const bms);
 	
@@ -60,6 +62,7 @@ private:
 	TaskHandle_t task;
 	SemaphoreHandle_t sem_spicallback;
 
+	SPIManager *spiManager = nullptr;
 	uint8_t spi_pin;
 	//Being lazy and not using a mutex for this one
 	size_t refreshRate;

@@ -9,9 +9,9 @@
 #include "util.h"
 #include "config.h"
 
-void TWIManager::addJob(Job const &job)
+void TWIManager::addJob(Job const &job, TickType_t const waitTime /*= 0*/)
 {
-	if(xQueueSendToBack(que_pendingJobs, &job, 0) == errQUEUE_FULL) {
+	if(xQueueSendToBack(que_pendingJobs, &job, waitTime) == errQUEUE_FULL) {
 		//Run non-critical error
 		//warning();
 	}
@@ -81,7 +81,7 @@ void TWIManager0::init()
 	callbackTask = TWIManager::task;
 	i2c_master_config config;
 	i2c_master_get_config_defaults(&config);
-	config.baud_rate = I2C_MASTER_BAUD_RATE_400KHZ;
+	config.baud_rate = I2C_MASTER_BAUD_RATE_100KHZ;
 	config.generator_source = GCLK_GENERATOR_1;
 	config.pinmux_pad0 = PINMUX_PA00D_SERCOM1_PAD0;
 	config.pinmux_pad1 = PINMUX_PA01D_SERCOM1_PAD1;

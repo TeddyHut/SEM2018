@@ -915,6 +915,9 @@
     <Compile Include="dep_instance.h">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="emc1701.cpp">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="emc1701.h">
       <SubType>compile</SubType>
     </Compile>

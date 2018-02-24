@@ -5,9 +5,31 @@
  *  Author: teddy
  */ 
 
+#include <cinttypes>
+#include <FreeRTOS.h>
+#include <task.h>
+#include <semphr.h>
+#include "config.h"
+#include "twimanager.h"
+#include "util.h"
+
 namespace emc1701 {
+	//Easier to type static_cast (for all the casting to int for these enum classes)
+	template <typename T, typename C = unsigned int>
+	constexpr C cs(T const t) {
+		return static_cast<C>(t);
+	}
+	
+	//Bool to 1 or 0 (might do this implicitly automatically anyway?)
+	constexpr unsigned int cu(bool const t) {
+		return t ? 1 : 0;
+	}
+
 	enum class Register {
 		Configuration                 = 0x03,
+		ConversionRate                = 0x04,
+		TemperatureHighLimit          = 0x05,
+		TemperatureLowLimit           = 0x06,
 		OneShot                       = 0x0f,
 		ChannelMask                   = 0x1f,
 		TemperatureCriticalLimit      = 0x20,
@@ -32,7 +54,7 @@ namespace emc1701 {
 		VsenseLowLimit                = 0x61,
 		VsourceHighLimit              = 0x64,
 		VsourceLowLimit               = 0x65,
-		VsenseCritialLimit            = 0x66,
+		VsenseCriticalLimit           = 0x66,
 		VsourceCriticalLimit          = 0x68,
 		VsenseCriticalHysteresis      = 0x69,
 		VsourceCriticalHysteresis     = 0x6a,
@@ -41,6 +63,7 @@ namespace emc1701 {
 		SMSCID                        = 0xfe,
 		Revision                      = 0xff,
 	};
+	constexpr size_t RegisterNum = 36;
 
 	//---Status Register---
 	enum class pos_Status {
@@ -260,9 +283,119 @@ namespace emc1701 {
 		uint8_t criticalLimit_Vsrc;
 		uint8_t criticalHysteresis_Vsrc;
 	};
+
+	void init();
 }
 
 class EMC1701 {
 public:
+	void init(TWIManager *const twiManager, uint8_t const address);
+	//void init(TWIManager *const twiManager, uint8_t const address, emc1701::Config const &config);
+	void setConfig(emc1701::Config const &config);
 
+	//Reads cached register value, and requests an update for that value (therefore new value after next cycle)
+	template <typename T = uint8_t>
+	T readRegister(emc1701::Register const reg);
+
+	//Writes val to reg through a write request
+	template <typename T = uint8_t>
+	void writeRegister(emc1701::Register const reg, T const val);
+private:
+	//Actions are accumulated in a vector, and every config::emc1701::refreshRate they are sorted and processed
+	struct Action {
+		//Register to act upon
+		emc1701::Register reg;
+		//If reading, will read into cache. If writing will use value.
+		uint8_t value;
+		enum class ActionType {
+			Read = 0,
+			Write,
+		} type;
+		bool operator==(Action const &p) const {
+			return type == p.type && reg == p.reg && value == p.value;
+		}
+		bool operator<(Action const &p) const {
+			//Value doesn't make a difference
+			return type < p.type || reg < p.reg;
+		}
+		bool operator>(Action const &p) const {
+			return !(*this < p);
+		}
+	};
+	mvector<Action> actions;
+	void addAction(Action const &action);
+
+	uint8_t regcache[emc1701::RegisterNum];
+	TWIManager *twiManager = nullptr;
+	uint8_t address = 0;
+
+	static void taskFunction(void *instance);
+	void task_main();
+	TaskHandle_t task = NULL;
+	SemaphoreHandle_t sem_twicallback = NULL;
+	mutable SemaphoreHandle_t mtx_regcache = NULL;
 };
+
+namespace emc1701 {
+	constexpr Register registers[RegisterNum] = {
+		Register::Configuration                ,
+		Register::ConversionRate               ,
+		Register::TemperatureHighLimit         ,
+		Register::TemperatureLowLimit          ,
+		Register::OneShot                      ,
+		Register::ChannelMask                  ,
+		Register::TemperatureCriticalLimit     ,
+		Register::TemperatureCriticalHysteresis,
+		Register::ConsecutiveAlert             ,
+		Register::Status                       ,
+		Register::HighLimitStatus              ,
+		Register::LowLimitStatus               ,
+		Register::CriticalLimitStatus          ,
+		Register::TemperatureHighByte          ,
+		Register::TemperatureLowByte           ,
+		Register::VoltageSamplingConfig        ,
+		Register::CurrentSamplingConfig        ,
+		Register::PeakDetectionConfig          ,
+		Register::VsenseHighByte               ,
+		Register::VsenseLowByte                ,
+		Register::VsourceHighByte              ,
+		Register::VsourceLowByte               ,
+		Register::PowerRatioHighByte           ,
+		Register::PowerRatioLowByte            ,
+		Register::VsenseHighLimit              ,
+		Register::VsenseLowLimit               ,
+		Register::VsourceHighLimit             ,
+		Register::VsourceLowLimit              ,
+		Register::VsenseCriticalLimit          ,
+		Register::VsourceCriticalLimit         ,
+		Register::VsenseCriticalHysteresis     ,
+		Register::VsourceCriticalHysteresis    ,
+		Register::ProductFeatures              ,
+		Register::ProductID                    ,
+		Register::SMSCID                       ,
+		Register::Revision
+	};
+	int regpos(Register const reg);
+}
+
+template <typename T /*= uint8_t*/>
+T EMC1701::readRegister(emc1701::Register const reg)
+{
+	static_assert(sizeof(T) == 1, "T must have size 1");
+	Action action;
+	action.type = Action::ActionType::Read;
+	action.reg = reg;
+	addAction(action);
+	return regcache[emc1701::regpos(reg)];
+}
+
+template <typename T /*= uint8_t*/>
+void EMC1701::writeRegister(emc1701::Register const reg, T const val)
+{
+	static_assert(sizeof(T) == 1, "T must have size 1");
+	Action action;
+	action.type = Action::ActionType::Write;
+	action.reg = reg;
+	action.value = val;
+	addAction(action);
+}

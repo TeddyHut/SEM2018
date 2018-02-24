@@ -19,6 +19,7 @@
 #include "runmanagement.h"
 #include "emc1701.h"
 
+//"Beep beep" at startup
 void buzzerStartup(Buzzer &buz) {
 	for(uint8_t i = 0; i < 2; i++) {
 		buz.start();
@@ -28,6 +29,7 @@ void buzzerStartup(Buzzer &buz) {
 	}
 }
 
+//LED blinks at startup
 void ledStartup(LED &led) {
 	for(uint8_t i = 0; i < 2; i++) {
 		led.setLEDState(true);
@@ -37,10 +39,35 @@ void ledStartup(LED &led) {
 	}
 }
 
+void servofinished_beep(Buzzer &buz) {
+	buz.start();
+	vTaskDelay(msToTicks(100));
+	buz.stop();
+}
+
 void aliveBlink(LED &buz) {
 	buz.setLEDState(true);
 	vTaskDelay(msToTicks(100));
 	buz.setLEDState(false);
+}
+
+void servo0_startup_callback(TimerHandle_t timer) {
+	//Servos are initially high impedance and can rely on the pullup resister to stop the fet from triggering
+	port_config config;
+	port_get_config_defaults(&config);
+	config.direction = PORT_PIN_DIR_OUTPUT;
+	port_pin_set_config(PIN_PA07, &config);
+	port_pin_set_output_level(PIN_PA07, false);
+	runtime::buzzermanager->registerSequence(servofinished_beep);
+}
+
+void servo1_startup_callback(TimerHandle_t timer) {
+	port_config config;
+	port_get_config_defaults(&config);
+	config.direction = PORT_PIN_DIR_OUTPUT;
+	port_pin_set_config(PIN_PA09, &config);
+	port_pin_set_output_level(PIN_PA09, false);
+	runtime::buzzermanager->registerSequence(servofinished_beep);
 }
 
 void activeCallback(TimerHandle_t timer) {
@@ -70,8 +97,10 @@ void main_task(void *const param) {
 	ManualSerial manserial;
 	manserial.init();
 	
-	TimerHandle_t aliveBlink_timer = xTimerCreate("aliveBlink", msToTicks(5000), pdTRUE, 0, activeCallback);
-	xTimerStart(aliveBlink_timer, portMAX_DELAY);
+	xTimerStart(xTimerCreate("aliveBlink", msToTicks(5000), pdTRUE, 0, activeCallback), portMAX_DELAY);
+	xTimerStart(xTimerCreate("servo0startup", msToTicks(5000), pdFALSE, 0, servo0_startup_callback), portMAX_DELAY);
+	xTimerStart(xTimerCreate("servo1startup", msToTicks(6000), pdFALSE, 0, servo1_startup_callback), portMAX_DELAY);
+
 	runmanagement::run();
 }
 
@@ -105,12 +134,20 @@ int main(void)
 	InitTraceBuffer();
 	system_init();
 
-	//Set the motor GPIO pins to outputs and pull them down (otherwise motors run for a little at startup)
+	//Set the motor and servo GPIO pins to outputs and pull them down (otherwise motors run for a little at startup)
 	port_config config;
 	port_get_config_defaults(&config);
 	config.direction = PORT_PIN_DIR_OUTPUT;
+	//Motors
 	port_pin_set_config(PIN_PA18, &config);
 	port_pin_set_config(PIN_PA22, &config);
+
+	//Servos
+	config.direction = PORT_PIN_DIR_INPUT;
+	config.input_pull = PORT_PIN_PULL_NONE;
+	port_pin_set_config(PIN_PA07, &config);
+	port_pin_set_config(PIN_PA09, &config);
+
 	port_pin_set_output_level(PIN_PA18, false);
 	port_pin_set_output_level(PIN_PA22, false);
 

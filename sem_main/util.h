@@ -7,24 +7,30 @@
 
 #pragma once
 
-//#include <exception>
-//#include <stdexcept>
 #include <functional>
 #include <memory>
 #include <type_traits>
+#include <vector>
+
 #include <FreeRTOS.h>
 #include <task.h>
 #include <semphr.h>
 #include <queue.h>
+
 #include "config.h"
 
+//Called whenever there's an error. Need to make better error management.
+void debugbreak();
+
+//printf implementations taken from GitHub, since builtin ones that supported float always messed with stack.
 extern "C" {
 //int rpl_vsnprintf(char *, size_t, const char *, va_list);
-int rpl_snprintf(char *, size_t, const char *, ...) __attribute__((format(printf, 3, 4)));
 //int rpl_vasprintf(char **, const char *, va_list);
 //int rpl_asprintf(char **, const char *, ...);
+int rpl_snprintf(char *, size_t, const char *, ...) __attribute__((format(printf, 3, 4)));
 }
 
+//Deleter to be used with smart pointers, using FreeRTOS memory management
 template <typename T>
 class deleter_free {
 public:
@@ -34,10 +40,47 @@ public:
 	}
 };
 
+//Mallocator. Used for containers so that FreeRTOS memory management and new don't mess with each other.
+//Taken from http://en.cppreference.com/w/cpp/concept/Allocator
+#include <cstdlib>
+#include <new>
+
+template <class T>
+struct Mallocator {
+	typedef T value_type;
+	
+	Mallocator() = default;
+	template <class U> constexpr Mallocator(const Mallocator<U>&) noexcept {}
+	
+	T *allocate(std::size_t n) noexcept {
+		if (n > std::size_t(-1) / sizeof(T))
+			debugbreak();
+		if (auto p = static_cast<T *>(pvPortMalloc(n * sizeof(T))))
+			return p;
+		debugbreak();
+		return nullptr;
+	}
+
+	void deallocate(T *p, std::size_t) noexcept {
+		vPortFree(p);
+	}
+};
+template <class T, class U>
+bool operator==(const Mallocator<T> &, const Mallocator<U> &) { return true; }
+template <class T, class U>
+bool operator!=(const Mallocator<T> &, const Mallocator<U> &) { return false; }
+
+//Standard container typedefs that use Mallocator
+template <typename T>
+using mvector = std::vector<T, Mallocator<T>>;
+
+
+//This was a thing and then it wasn't
 constexpr void throwIfTrue(bool const p, char const *const str) {
 	//p ? throw std::logic_error(str) : 0;
 }
 
+//Useful ADC conversion functions
 namespace adcutil {
 	constexpr float vdiv_factor(float const r1, float const r2) {
 		return r2 / (r1 + r2);
@@ -58,8 +101,7 @@ namespace adcutil {
 	}
 }
 
-void debugbreak();
-
+//I don't know why this is here, but used as a baseclass for 'feedback management', e.g. buzzers and LEDs
 template <typename T, typename Sequence_t = std::function<void (T &)>>
 class FeedbackManager {
 public:

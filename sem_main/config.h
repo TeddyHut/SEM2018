@@ -164,7 +164,7 @@ namespace config {
 		constexpr char const * taskName = "BMS";
 		constexpr uint16_t taskStackDepth = 96;
 		constexpr unsigned int taskPriority = 1;
-		constexpr size_t refreshRate = 100;
+		constexpr size_t refreshRate = msToTicks(100);
 		constexpr unsigned int bms0_ss_pin = PIN_PA11;
 		constexpr unsigned int bms1_ss_pin = PIN_PB08;
 	}
@@ -189,6 +189,12 @@ namespace config {
 		constexpr char const * taskName = "ManualSerial";
 		constexpr uint16_t taskStackDepth = 256;
 		constexpr unsigned int taskPriority = 1;
+	}
+	namespace emc1701 {
+		constexpr char const * taskName = "EMC1701";
+		constexpr uint16_t taskStackDepth = 64;
+		constexpr unsigned int taskPriority = 1;
+		constexpr size_t refreshRate = msToTicks(125);
 	}
 }
 

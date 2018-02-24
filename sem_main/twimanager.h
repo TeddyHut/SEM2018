@@ -33,7 +33,7 @@ public:
 		SemaphoreHandle_t sem_complete = NULL;
 	};
 
-	void addJob(Job const &job);
+	void addJob(Job const &job, TickType_t const waitTime = 0);
 	void init();
 protected:
 	i2c_master_module twi_instance;
