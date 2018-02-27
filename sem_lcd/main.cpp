@@ -10,6 +10,8 @@
 #include <avr/sleep.h>
 #include "tedavr/include/tedavr/ic_hd44780.h"
 
+#define INVERTED 1
+
 namespace serial {
 	//Transfer starts with 0xfe, ends with 0xff
 	constexpr float baudRate = 9600;
@@ -36,6 +38,8 @@ enum class InputCommand : uint8_t {
 	StopBuzzer,
 	LEDOn,
 	LEDOff,
+	BacklightOn,
+	BacklightOff,
 };
 
 inline void setLEDState(bool const state) {
@@ -48,6 +52,11 @@ inline void setBuzzerState(bool const state) {
 	else TCCR1B &= ~_BV(CS10);
 }
 
+inline void setBacklightState(bool const state) {
+	if(state) PORTA |= _BV(5);
+	else PORTA &= ~_BV(5);
+}
+
 ISR(TIM1_OVF_vect) {
 	PORTA |= _BV(7);
 }
@@ -58,7 +67,11 @@ ISR(TIM1_COMPA_vect) {
 
 ISR(PCINT0_vect) {
 	//Pin has gone from high to low
+#if (INVERTED == 0)
 	if(!(PINA & _BV(6))) {
+#else
+	if(PINA & _BV(6)) {
+#endif
 		//Disable pin change interrupt on PCINT6
 		PCMSK0 &= ~_BV(PCINT6);
 		//Set the USI counter to 16 - 9 (will be overflowed after start bit + 8 data bits)
@@ -77,6 +90,9 @@ ISR(USI_OVF_vect) {
 	TCCR0B &= ~0b111;
 	//Store the contents of the data register in (reverse the byte since it's clocked in left-shifting)
 	uint8_t recv = serial::reverseByte(USIDR);
+#if (INVERTED == 1)
+	recv = ~recv;
+#endif
 	//Start transfer/reset buffer
 	if(recv == 0xfe) {
 		serial::bufferpos = 0;
@@ -156,6 +172,9 @@ int main(void)
 	display << instr::clear_display;
 	display << "    SEM LCD\nConnect to PCB";
 	
+	//Default to backlight on
+	setBacklightState(true);
+
 	//---Enable interrupts
 	sei();
 
@@ -187,6 +206,12 @@ int main(void)
 				case InputCommand::LEDOff:
 					setLEDState(false);
 					break;
+				case InputCommand::BacklightOn:
+					setBacklightState(true);
+				break;
+				case InputCommand::BacklightOff:
+					setBacklightState(false);
+				break;
 				case static_cast<InputCommand>('\n'):
 					display << instr::set_ddram_addr << 40;
 					break;
