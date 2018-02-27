@@ -11,15 +11,15 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define BMS_NUMBER 0
-	
-#if (BMS_NUMBER == 0)
-#define ERROR_OFFSET_CURRENT 1
-#define ERROR_OFFSET_VCC 8
-#define ERROR_OFFSET_TEMPERATURE 0
-#elif (BMS_NUMBER == 1)
+#define BMS_NUMBER 2
+
+#if (BMS_NUMBER == 1)
 #define ERROR_OFFSET_CURRENT 1
 #define ERROR_OFFSET_VCC 4
+#define ERROR_OFFSET_TEMPERATURE 0
+#elif (BMS_NUMBER == 2)
+#define ERROR_OFFSET_CURRENT 1
+#define ERROR_OFFSET_VCC 8
 #define ERROR_OFFSET_TEMPERATURE 0
 #endif
 
