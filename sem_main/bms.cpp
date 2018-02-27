@@ -96,7 +96,7 @@ void BMS::setLEDState(bool const state)
 	job.sem_complete = NULL;
 	job.ss_pin = spi_pin;
 	job.len = 1;
-	runtime::mainspi->addJob(job);
+	spiManager->addJob(job);
 }
 
 void BMS::init(SPIManager *const spiManager, uint8_t const pin, size_t const refreshRate /*= config::bms::refreshRate*/)

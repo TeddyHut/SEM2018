@@ -5,11 +5,13 @@
  *  Author: teddy
  */ 
 
+#pragma once
+
 #include <cinttypes>
 #include <FreeRTOS.h>
 #include <task.h>
 #include <semphr.h>
-#include "config.h"
+#include "main_config.h"
 #include "twimanager.h"
 #include "util.h"
 
@@ -386,7 +388,7 @@ T EMC1701::readRegister(emc1701::Register const reg)
 	action.type = Action::ActionType::Read;
 	action.reg = reg;
 	addAction(action);
-	return regcache[emc1701::regpos(reg)];
+	return *reinterpret_cast<T const *>(&(regcache[emc1701::regpos(reg)]));
 }
 
 template <typename T /*= uint8_t*/>
@@ -396,6 +398,6 @@ void EMC1701::writeRegister(emc1701::Register const reg, T const val)
 	Action action;
 	action.type = Action::ActionType::Write;
 	action.reg = reg;
-	action.value = val;
+	action.value = *reinterpret_cast<uint8_t const *>(&val);
 	addAction(action);
 }

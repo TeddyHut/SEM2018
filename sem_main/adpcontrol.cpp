@@ -6,6 +6,7 @@
  */ 
 
 #include "adpcontrol.h"
+#include "instance.h"
 #include "dep_instance.h"
 #include <string.h>
 
@@ -318,7 +319,7 @@ void ADPControl::setupDashboard()
 	graph.width = 320;
 	graph.height = 240;
 	graph.plot_count = 2;
-	graph.y_min = -180;
+	graph.y_min = 0;
 	graph.y_max = 180;
 	graph.mode.bit.fit_graph = 0;
 	graph.mode.bit.mouse = 0;

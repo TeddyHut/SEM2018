@@ -9,7 +9,7 @@
 #include "util.h"
 
 #include <map>
-#include <vector>
+#include <list>
 #include <algorithm>
 #include <functional>
 #include <cstring>

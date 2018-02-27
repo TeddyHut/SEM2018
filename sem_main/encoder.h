@@ -14,7 +14,7 @@
 #include <tcc.h>
 #include <tcc_callback.h>
 
-#include "config.h"
+#include "main_config.h"
 
 namespace tccEncoder {
 	extern tcc_module instance;

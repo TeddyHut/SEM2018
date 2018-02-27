@@ -240,13 +240,13 @@ void Run::CoastRamp::displayUpdate(Display &disp)
 Run::Output Run::SpeedMatch::update(Input const &input)
 {
 	Output out;
-	//if(checkComplete(input))
-	//	out.motor0DutyCycle = 0;
-	//else {
+	if(checkComplete(input))
+		out.motor0DutyCycle = 0;
+	else {
 		out.motor0DutyCycle = std::min(
-		std::max(static_cast<float>(-(2.0f / M_PI) * std::atan((input.motor0Speed - input.driveSpeed) / 10.0f)), 0.0f),
+		std::max(static_cast<float>(-(2.0f / M_PI) * std::atan((input.motor0Speed - input.driveSpeed) / 500.0f)), 0.0f),
 			f.currentValue(input.time));
-	//}
+	}
 	out.output[Output::Element::Motor0DutyCycle] = true;
 	
 	return out;
@@ -254,8 +254,8 @@ Run::Output Run::SpeedMatch::update(Input const &input)
 
 Run::Task * Run::SpeedMatch::complete(Input const &input)
 {
-	//if(checkComplete(input))
-		//return new(pvPortMalloc(sizeof(Engage))) Engage(input, Engage::Servo::Servo0, Engage::PostTask::CoastRamp);
+	if(checkComplete(input))
+		return new(pvPortMalloc(sizeof(Engage))) Engage(input, Engage::Servo::Servo0, Engage::PostTask::CoastRamp);
 	return nullptr;
 }
 
@@ -268,13 +268,13 @@ bool Run::SpeedMatch::checkComplete(Input const &input)
 {
 	if(completed) return true;
 	if(withinError(input.motor0Speed, input.driveSpeed, config::run::errorrange)) {
-		if(correctEntry - xTaskGetTickCount() >= config::run::speedmatchcorrecttimeout) {
+		if((input.time - correctEntry) >= config::run::speedmatchcorrecttimeout) {
 			completed = true;
 			return true;
 		}
 	}
 	else
-		correctEntry = xTaskGetTickCount();
+		correctEntry = input.time;
 	return false;
 }
 

@@ -7,7 +7,7 @@
 
 #include "buzzer.h"
 
-#include "config.h"
+#include "main_config.h"
 #include "servo.h"
 #include "motor.h"
 #include "util.h"

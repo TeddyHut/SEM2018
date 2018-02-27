@@ -7,7 +7,7 @@
 
 #include "twimanager.h"
 #include "util.h"
-#include "config.h"
+#include "main_config.h"
 
 void TWIManager::addJob(Job const &job, TickType_t const waitTime /*= 0*/)
 {
@@ -74,6 +74,8 @@ void TWIManager0::twi_callback(i2c_master_module *const module)
 	vTaskNotifyGiveFromISR(callbackTask, &prio);
 	portYIELD_FROM_ISR(prio);
 }
+
+TaskHandle_t TWIManager0::callbackTask = NULL;
 
 void TWIManager0::init()
 {

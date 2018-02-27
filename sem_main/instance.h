@@ -7,11 +7,11 @@
 
 #pragma once
 
-#include <memory>
 #include "buzzer.h"
 #include "lcd.h"
 #include "leds.h"
 #include "spimanager.h"
+#include "twimanager.h"
 #include "gpioinput.h"
 
 namespace runtime {
@@ -22,6 +22,7 @@ namespace runtime {
 	extern BuzzerManager	*vbBuzzermanager;
 	extern ViewerBoard		*viewerboard;
 	extern SPIManager		*mainspi;
+	extern TWIManager       *maintwi;
 	extern LED				*greenLED;
 	extern LED				*redLED;
 	extern LED				*vbLED;

@@ -12,7 +12,7 @@
 #include <timers.h>
 #include <cstdio>
 #include <array>
-#include "config.h"
+#include "main_config.h"
 #include "instance.h"
 #include "dep_instance.h"
 #include "manualserial.h"
@@ -52,23 +52,19 @@ void aliveBlink(LED &buz) {
 }
 
 void servo0_startup_callback(TimerHandle_t timer) {
-	//Servos are initially high impedance and can rely on the pullup resister to stop the fet from triggering
-	port_config config;
-	port_get_config_defaults(&config);
-	config.direction = PORT_PIN_DIR_OUTPUT;
-	port_pin_set_config(PIN_PA07, &config);
-	port_pin_set_output_level(PIN_PA07, false);
+	port_pin_set_output_level(config::servopower::servo0_power_pin, true);
 	runtime::buzzermanager->registerSequence(servofinished_beep);
 }
 
 void servo1_startup_callback(TimerHandle_t timer) {
-	port_config config;
-	port_get_config_defaults(&config);
-	config.direction = PORT_PIN_DIR_OUTPUT;
-	port_pin_set_config(PIN_PA09, &config);
-	port_pin_set_output_level(PIN_PA09, false);
+	port_pin_set_output_level(config::servopower::servo1_power_pin, true);
 	runtime::buzzermanager->registerSequence(servofinished_beep);
 }
+
+//void servoReg_startup_callback(TimerHandle_t timer) {
+//	port_pin_set_output_level(config::servopower::servo_regulatorEnable_pin, true);
+//	runtime::buzzermanager->registerSequence(servofinished_beep);
+//}
 
 void activeCallback(TimerHandle_t timer) {
 	runtime::vbLEDmanager->registerSequence(aliveBlink);
@@ -94,12 +90,15 @@ void main_task(void *const param) {
 	runtime::servo0->setPosition(config::run::servo0restposition);
 	runtime::servo1->setPosition(config::run::servo1restposition);
 
+#if (ENABLE_MANUALSERIAL == 1)
 	ManualSerial manserial;
 	manserial.init();
+#endif
 	
 	xTimerStart(xTimerCreate("aliveBlink", msToTicks(5000), pdTRUE, 0, activeCallback), portMAX_DELAY);
-	xTimerStart(xTimerCreate("servo0startup", msToTicks(5000), pdFALSE, 0, servo0_startup_callback), portMAX_DELAY);
-	xTimerStart(xTimerCreate("servo1startup", msToTicks(6000), pdFALSE, 0, servo1_startup_callback), portMAX_DELAY);
+	//xTimerStart(xTimerCreate("servoReg_start", msToTicks(2000), pdFALSE, 0, servoReg_startup_callback), portMAX_DELAY);
+	xTimerStart(xTimerCreate("servo0startup", msToTicks(3000), pdFALSE, 0, servo0_startup_callback), portMAX_DELAY);
+	xTimerStart(xTimerCreate("servo1startup", msToTicks(4000), pdFALSE, 0, servo1_startup_callback), portMAX_DELAY);
 
 	runmanagement::run();
 }
@@ -135,21 +134,22 @@ int main(void)
 	system_init();
 
 	//Set the motor and servo GPIO pins to outputs and pull them down (otherwise motors run for a little at startup)
-	port_config config;
-	port_get_config_defaults(&config);
-	config.direction = PORT_PIN_DIR_OUTPUT;
+	port_config outconfig;
+	port_get_config_defaults(&outconfig);
+	outconfig.direction = PORT_PIN_DIR_OUTPUT;
 	//Motors
-	port_pin_set_config(PIN_PA18, &config);
-	port_pin_set_config(PIN_PA22, &config);
+	port_pin_set_config(config::motor::motor0_pin, &outconfig);
+	port_pin_set_config(config::motor::motor1_pin, &outconfig);
+	port_pin_set_output_level(config::motor::motor0_pin, false);
+	port_pin_set_output_level(config::motor::motor1_pin, false);
 
 	//Servos
-	config.direction = PORT_PIN_DIR_INPUT;
-	config.input_pull = PORT_PIN_PULL_NONE;
-	port_pin_set_config(PIN_PA07, &config);
-	port_pin_set_config(PIN_PA09, &config);
+	port_pin_set_config(config::servopower::servo0_power_pin, &outconfig);
+	port_pin_set_config(config::servopower::servo1_power_pin, &outconfig);
+	port_pin_set_output_level(config::servopower::servo0_power_pin, false);
+	port_pin_set_output_level(config::servopower::servo1_power_pin, false);
 
-	port_pin_set_output_level(PIN_PA18, false);
-	port_pin_set_output_level(PIN_PA22, false);
+	//port_pin_set_output_level(config::servopower::servo1_power_pin, true);
 
 	TaskHandle_t task;
 	xTaskCreate(main_task, "main", 512, nullptr, 1, &task);
@@ -211,6 +211,9 @@ void HardFault_HandlerC(unsigned long *hardfault_args){
 	// Bus Fault Address Register
 	_BFAR = (*((volatile unsigned long *)(0xE000ED38))) ;
 	
+	//Stop movement
+	stopmovement();
+
 	__asm("BKPT #0\n") ; // Break into the debugger
 }
 

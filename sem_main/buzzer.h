@@ -14,6 +14,7 @@
 #include <tc.h>
 #include <type_traits>
 #include "util.h"
+#include "feedbackmanager.h"
 
 //Abstract representation of physical buzzer
 class Buzzer {

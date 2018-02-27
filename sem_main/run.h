@@ -7,10 +7,12 @@
 
 #pragma once
 
+//TODO: This all needs desperate refactoring
+
 #include <bitset>
 #include <memory>
 #include <FreeRTOS.h>
-#include "config.h"
+#include "main_config.h"
 #include "bms.h"
 #include "valuematch.h"
 #include "util.h"
@@ -121,7 +123,7 @@ namespace Run {
 		ValueMatch::Linear<float, float> f;
 	};
 
-	//Matches the speed of motor0 to the speed of the drive shaft (from 0 to 1 over time config::matchramptime), within config::errorFactor. Then sets to motor duty cycle to zero
+	//Matches the speed of motor0 to the speed of the drive shaft through use of negative arctan function, but initially masked by a linear increase in duty cycle.
 	//NextTask: Engage(Servo0, CoastRamp)
 	class SpeedMatch : public Task {
 	public:
@@ -131,7 +133,7 @@ namespace Run {
 	private:
 		bool checkComplete(Input const &input);
 		bool completed = false;
-		TickType_t correctEntry;
+		float correctEntry = 0;
 		//Used so that the duty cycle doesn't just jump straight to one (masks the first)
 		ValueMatch::Linear<float, float> f;
 	};
@@ -156,6 +158,12 @@ namespace Run {
 
 	//Checks that motor current usage isn't too high
 	class MotorCheck : public Task {
+		Output update(Input const &input) override;
+		Task *complete(Input const &input) override;
+	};
+
+	//Checks that servo current usage isn't too high
+	class ServoCheck : public Task {
 		Output update(Input const &input) override;
 		Task *complete(Input const &input) override;
 	};

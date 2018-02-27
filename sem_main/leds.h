@@ -8,6 +8,7 @@
 #pragma once
 
 #include "util.h"
+#include "feedbackmanager.h"
 
 class LED {
 public:

@@ -6,7 +6,7 @@
  */ 
 
 #include "lcd.h"
-#include "config.h"
+#include "main_config.h"
 #include <algorithm>
 #include <cstring>
 

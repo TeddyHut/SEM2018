@@ -6,7 +6,7 @@
  */ 
 
 #include "encoder.h"
-#include "config.h"
+#include "main_config.h"
 #include <string.h>
 #include <extint.h>
 #include <events.h>
@@ -26,7 +26,11 @@ void event_motor0_callback() {
 }
 
 void event_motor1_callback() {
+#if (PATCH_ENCODER2_TO_ENCODER1 == 1)
+	Encoder2::compare(Encoder2::getCounterValue());
+#else
 	Encoder1::compare(Encoder1::getCounterValue());
+#endif
 }
 
 void event_wheel_callback() {

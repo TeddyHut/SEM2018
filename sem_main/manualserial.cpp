@@ -6,7 +6,7 @@
  */ 
 
 #include "manualserial.h"
-#include "config.h"
+#include "main_config.h"
 #include "util.h"
 #include "instance.h"
 #include "dep_instance.h"
@@ -81,10 +81,10 @@ void ManualSerial::task_main()
 		runtime::servo1->setPosition(getFromBuffer(buffer, 3) - 180);
 		//memset(str, ' ', 16);
 		//runtime::viewerboard->setPosition(0);
-		//snprintf(str, 16, "%7.0f %7.0f", runtime::encoder0->getSpeed(), runtime::encoder1->getSpeed());
+		//rpl_snprintf(str, 16, "%7.0f %7.0f", runtime::encoder0->getSpeed(), runtime::encoder1->getSpeed());
 		//runtime::viewerboard->writeText(str, 16);
 		//runtime::viewerboard->setPosition(40);
-		//snprintf(str, 16, "%7.0f %f", runtime::encoder2->getSpeed(), runtime::encoder0->getSpeed() / runtime::encoder2->getSpeed());
+		//rpl_snprintf(str, 16, "%7.0f %f", runtime::encoder2->getSpeed(), runtime::encoder0->getSpeed() / runtime::encoder2->getSpeed());
 		//runtime::viewerboard->writeText(str, 16);
 	}
 }

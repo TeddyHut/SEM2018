@@ -11,8 +11,8 @@
 #include <FreeRTOS.h>
 #include <task.h>
 #include <semphr.h>
-#include "config.h"
-#include "instance.h"
+#include "main_config.h"
+#include "spimanager.h"
 
 namespace bmsstatic {
 	void init();

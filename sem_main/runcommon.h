@@ -62,6 +62,23 @@ namespace Run {
 		float motor0EnergyUsage = 0;
 		//Total energy usage of motor1 (W/h)
 		float motor1EnergyUsage = 0;
+		//Current going through servo0 (A)
+		float servo0Current = 0;
+		//Current going through servo1 (A)
+		float servo1Current = 0;
+		//Voltage for servo0
+		float servo0Voltage = 0;
+		//Voltage for servo1
+		float servo1Voltage = 0;
+		//Current on 3.3V rail (A)
+		float v3v3Current = 0;
+		//Voltage on 3.3V rail
+		float v3v3Voltage = 0;
+		//Current on 5V rail (A)
+		float v5Current = 0;
+		//Voltage on 5V rail
+		float v5Voltage = 0;
+		//Voltage from 3.3V regulat
 		//Total energy usage overall (W/h)
 		float totalEnergyUsage = 0;
 		//The total distance covered
@@ -79,6 +96,8 @@ namespace Run {
 				Motor1DutyCycle,
 				Servo0Position,
 				Servo1Position,
+				Servo0Power,
+				Servo1Power,
 				_size,
 			};
 		};
@@ -86,6 +105,8 @@ namespace Run {
 		float motor1DutyCycle;
 		float servo0Position;
 		float servo1Position;
+		bool servo0Power;
+		bool servo1Power;
 		std::bitset<Element::_size> output;
 	};
 }

@@ -6,7 +6,7 @@
  */ 
 
 #include "spimanager.h"
-#include "config.h"
+#include "main_config.h"
 #include "util.h"
 #include <port.h>
 

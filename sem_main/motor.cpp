@@ -5,7 +5,7 @@
  *  Author: teddy
  */ 
 
-#include "config.h"
+#include "main_config.h"
 #include "motor.h"
 #include <type_traits>
 

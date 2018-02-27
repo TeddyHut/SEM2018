@@ -119,9 +119,9 @@ void fillInput(Input &input, Output const &prevOutput) {
 	//Time based calculations
 	input.distance += input.vehicleSpeed * timeDifference;
 	//Energy in W/s (joules) / 3600 to get W/h
-	//input.totalEnergyUsage += (((input.bms0data.current * input.bms0data.voltage) + (input.bms1data.current * input.bms1data.voltage)) * timeDifference) / 3600.0f;
+	input.totalEnergyUsage += (((input.bms0data.current * input.bms0data.voltage) + (input.bms1data.current * input.bms1data.voltage)) * timeDifference) / 3600.0f;
 	//This for when only one BMS is working
-	input.totalEnergyUsage += (((input.bms1data.current * input.bms1data.voltage) + (input.bms1data.current * input.bms1data.voltage)) * timeDifference) / 3600.0f;
+	//input.totalEnergyUsage += (((input.bms1data.current * input.bms1data.voltage) + (input.bms1data.current * input.bms1data.voltage)) * timeDifference) / 3600.0f;
 	input.motor0EnergyUsage += (input.motor0Current * input.voltage * timeDifference) / 3600.0f;
 	input.motor1EnergyUsage += (input.motor1Current * input.voltage * timeDifference) / 3600.0f;
 
@@ -136,8 +136,17 @@ void fillInput(Input &input, Output const &prevOutput) {
 	input.bms1data = runtime::bms1->get_data();
 	input.motor0Speed = runtime::encoder0->getSpeed();
 	input.motor1Speed = runtime::encoder1->getSpeed();
-	input.motor0Current = get_motor_current(MotorIndex::Motor0);
-	input.motor1Current = get_motor_current(MotorIndex::Motor1);
+	//input.motor0Current = get_motor_current(MotorIndex::Motor0);
+	//input.motor1Current = get_motor_current(MotorIndex::Motor1);
+	input.servo0Current = runtime::sensor_servo0_current->value();
+	input.servo1Current = runtime::sensor_servo1_current->value();
+	input.servo0Voltage = runtime::sensor_servo0_voltage->value();
+	input.servo1Voltage = runtime::sensor_servo1_voltage->value();
+	input.v3v3Current   = runtime::sensor_3v3_current->value();
+	input.v3v3Voltage   = runtime::sensor_3v3_current->value();
+	input.v5Current     = runtime::sensor_5v_current->value();
+	input.v5Voltage     = runtime::sensor_5v_voltage->value();
+
 	input.driveSpeed = runtime::encoder2->getSpeed();
 	input.opState = opBuffer.pressed(!runtime::opPresence->state());
 
@@ -182,8 +191,10 @@ void runmanagement::run()
 	Task *batteryCheck = new (pvPortMalloc(sizeof(BatteryCheck))) BatteryCheck;
 	Task *motorCheck = new (pvPortMalloc(sizeof(MotorCheck))) MotorCheck;
 
-	//ADPControl adpcontrol;
-	//adpcontrol.init();
+#if (ENABLE_ADPCONTROL == 1)
+	ADPControl adpcontrol;
+	adpcontrol.init();
+#endif
 
 	currentTask->displayUpdate(disp);
 	TickType_t previousWakeTime = xTaskGetTickCount();
@@ -191,7 +202,7 @@ void runmanagement::run()
 	while(true) {
 		fillInput(input, output);
 		input.currentID = currentTask->id;
-		//mergeOutput(output, currentTask->update(input));
+		mergeOutput(output, currentTask->update(input));
 		Task *returnTask = currentTask->complete(input);
 		//Current task should be changed
 		if(returnTask != nullptr) {
@@ -205,14 +216,19 @@ void runmanagement::run()
 			mergeOutput(output, element->update(input));
 			element->displayUpdate(disp);
 		}
-		//processOutput(output);
+#if (ENABLE_MANUALSERIAL == 1)
+		if(currentTask->id != TaskIdentity::Idle)
+#endif	
+		processOutput(output);
 		//Reset change flags
 		output.output.reset();
 		//Print display
 		if(xTaskGetTickCount() - displayUpdateTime >= config::run::displayrefreshrate) {
 			displayUpdateTime = xTaskGetTickCount();
 			disp.printDisplay(input);
-			//mergeOutput(output, adpcontrol.update(input));
+#if (ENABLE_ADPCONTROL == 1)
+			mergeOutput(output, adpcontrol.update(input));
+#endif
 		}
 		//Set an external LED if the person isn't holding the OP
 		runtime::greenLED->setLEDState(!input.opState);

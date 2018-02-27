@@ -29,16 +29,19 @@ LEDManager				*runtime::greenLEDmanager	= nullptr;
 LEDManager				*runtime::redLEDmanager		= nullptr;
 LEDManager				*runtime::vbLEDmanager		= nullptr;
 SPIManager				*runtime::mainspi			= nullptr;
+TWIManager				*runtime::maintwi			= nullptr;
 GPIOPin					*runtime::opPresence		= nullptr;
 
 void runtime::init()
 {
-	//Set system interruot priorities (for interrupts that need to use FreeRTOS API)
+	//Set system interrupt priorities (for interrupts that need to use FreeRTOS API)
 	//LCD
 	system_interrupt_set_priority(SYSTEM_INTERRUPT_MODULE_SERCOM0, SYSTEM_INTERRUPT_PRIORITY_LEVEL_2);
+	//TWI Manager
+	system_interrupt_set_priority(SYSTEM_INTERRUPT_MODULE_SERCOM1, SYSTEM_INTERRUPT_PRIORITY_LEVEL_2);
 	//SPI Manager
 	system_interrupt_set_priority(SYSTEM_INTERRUPT_MODULE_SERCOM3, SYSTEM_INTERRUPT_PRIORITY_LEVEL_2);
-	//ManualSerial
+	//ManualSerial/ADPControl
 	system_interrupt_set_priority(SYSTEM_INTERRUPT_MODULE_SERCOM5, SYSTEM_INTERRUPT_PRIORITY_LEVEL_2);
 	//Extenal pins
 	system_interrupt_set_priority(SYSTEM_INTERRUPT_MODULE_EIC, SYSTEM_INTERRUPT_PRIORITY_LEVEL_2);
@@ -48,6 +51,7 @@ void runtime::init()
 
 	viewerboard			= new (pvPortMalloc(sizeof(ViewerBoard))			)	ViewerBoard;
 	mainspi				= new (pvPortMalloc(sizeof(SPIManager0))			)	SPIManager0;
+	maintwi				= new (pvPortMalloc(sizeof(TWIManager0))			)	TWIManager0;
 	buzzer				= new (pvPortMalloc(sizeof(Buzzer0))				)	Buzzer0;
 	vbBuzzer			= new (pvPortMalloc(sizeof(ViewerBoard::Buzzer))	)	ViewerBoard::Buzzer(*viewerboard);
 	buzzermanager		= new (pvPortMalloc(sizeof(BuzzerManager))		)	BuzzerManager;
@@ -62,6 +66,7 @@ void runtime::init()
 
 	viewerboard								->init();
 	static_cast<SPIManager0 *>(mainspi)		->init();
+	static_cast<TWIManager0 *>(maintwi)     ->init();
 	static_cast<Buzzer0 *>(buzzer)			->init();
 	buzzermanager							->init(buzzer);
 	vbBuzzermanager							->init(vbBuzzer);

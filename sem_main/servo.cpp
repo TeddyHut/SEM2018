@@ -6,7 +6,7 @@
  */
 
 #include "servo.h"
-#include "config.h"
+#include "main_config.h"
 
 namespace {
 	constexpr TCCServoStaticConfig<float>::Result res0 = TCCServoStaticConfig<float>::calculateResult(
