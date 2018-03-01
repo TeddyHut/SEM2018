@@ -9,9 +9,12 @@
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include <math.h>
 
 #define BMS_NUMBER 2
+#define F_CPU 20000000
 
 #if (BMS_NUMBER == 1)
 #define ERROR_OFFSET_CURRENT 1
@@ -80,14 +83,6 @@ constexpr float current_opamp_transformation_inV(float const outV, float const v
 	return (6.0f / 5.0f) * (outV + (vcc / 3.0f));
 }
 
-//Used to store what triggered the error
-enum class Trigger : uint8_t {
-	None = 0,
-	Current,
-	Voltage,
-	Temperature,
-} volatile trigger = Trigger::None;
-
 enum class Instruction : uint8_t {
 	Normal = 0,
 	ReceiveData,
@@ -108,6 +103,13 @@ enum class DataIndexes {
 	_size,
 };
 
+enum LEDBlinkAmount {
+	Blink_Button = 0,
+	Blink_Temperature = 1,
+	Blink_Voltage = 2,
+	Blink_Current = 3,
+};
+
 constexpr ADC_MUXPOS_enum ADCMap[static_cast<unsigned int>(DataIndexes::_size)] = {
 	ADC_MUXPOS_AIN9_gc,	//Temperature
 	ADC_MUXPOS_AIN7_gc,	//Current
@@ -124,6 +126,11 @@ volatile uint8_t dataBuffer[2][static_cast<unsigned int>(DataIndexes::_size) * 2
 volatile uint8_t dataBufferPos = 0;
 volatile uint8_t dataBufferChoice = 0;
 
+//Used to store the (potential) cause of a relay firing. Will be written to eeprom if the relay fires
+char str_triggerCause[16];
+//Stores the amount of times the LED should blink if it is triggered
+volatile LEDBlinkAmount blinkAmount = Blink_Button;
+volatile LEDBlinkAmount cause_blinkAmount = Blink_Button;
 //Number of cycles of the timer ISR
 uint32_t totalCycles = 0;
 //Used to determine whether main board is still communicating.
@@ -137,6 +144,23 @@ bool relay_fired = false;
 uint16_t retreiveFromBuffer(volatile uint8_t const buffer[], DataIndexes const pos) {
 	return (buffer[static_cast<unsigned int>(pos) * 2] |
 	(buffer[static_cast<unsigned int>(pos) * 2 + 1] << 8));
+}
+
+void nvm_command(NVMCTRL_CMD_t const cmd) {
+	//Unlock the NVM protection (works for 4 instructions)
+	CCP = CCP_SPM_gc;
+	NVMCTRL.CTRLA = cmd;
+}
+
+void writeCause() {
+	//Wait for eeprom to not be busy
+	while(NVMCTRL.STATUS & NVMCTRL_EEBUSY_bm);
+	//Clear the NVM page buffer
+	nvm_command(NVMCTRL_CMD_PAGEBUFCLR_gc);
+	//Write values to eeprom mapped area
+	strncpy(reinterpret_cast<char *>(EEPROM_START), str_triggerCause, sizeof str_triggerCause);
+	//Write values to eeprom
+	nvm_command(NVMCTRL_CMD_PAGEWRITE_gc);
 }
 
 void setLEDState(bool const state) {
@@ -159,9 +183,23 @@ void setLEDBlinkingState(bool const state) {
 
 void setRelayState(bool const state) {
 	if(state && !relay_fired) {
+		//Set the relay state
 		PORTA.OUTSET = 1 << 5;
+		//Stop idle blinking
 		setLEDBlinkingState(false);
-		setLEDState(true);
+		setLEDState(false);
+		//Enable cause blinking
+		cause_blinkAmount = blinkAmount;
+		//Enable overflow interrupt
+		TCA0.SINGLE.INTCTRL = TCA_SINGLE_OVF_bm;
+		//Everything should be fine at default settings (normal mode)
+		TCA0.SINGLE.CTRLB = 0;
+		//Set period to 10ms (interrupt will occur 10ms from now, doesn't really matter when it is). Prescale 1024 was already set in initialization
+		TCA0.SINGLE.PER = (F_CPU / 1024) / 100;
+		//Enable the timer
+		TCA0.SINGLE.CTRLA |= TCA_SINGLE_ENABLE_bm;
+		//Write cause to eeprom
+		writeCause();
 	}
 	else if (!state) {
 		PORTA.OUTCLR = 1 << 5;
@@ -170,7 +208,7 @@ void setRelayState(bool const state) {
 	relay_fired = state;
 }
 
-void relayAssert(bool const result, Trigger const cause) {
+void relayAssert(bool const result) {
 	//Check that for the buffer the functions are being called from separate cycles (as opposed to multiple from the same cycle)
 	static uint32_t lastCycle = 0;
 	static unsigned int consecutiveErrors = 0;
@@ -179,7 +217,6 @@ void relayAssert(bool const result, Trigger const cause) {
 	if(lastCycle != totalCycles) {
 		//A new cycle
 		if(wasSetLastCycle && (++consecutiveErrors == ConsecutiveErrors)) {
-			trigger = cause;
 			relaytimeout_cycles = RelayTimeout_cycles;
 			setRelayState(true);
 		}
@@ -192,18 +229,40 @@ void relayAssert(bool const result, Trigger const cause) {
 }
 
 void button_update() {
-	//pullup, so values are inverted
+	//Assert that the button is not held
+	snprintf(str_triggerCause, sizeof str_triggerCause, "Button Pressed");
+	blinkAmount = Blink_Button;
+	relayAssert(PORTB.IN & (1 << 3));
+}
+
+ISR(TCA0_OVF_vect) {
+	//Will be on for 2 seconds, and then blink quickly a certain amount of times depending on what the cause was
+	static uint8_t blinksRemaining = 0;
 	static bool previousState = true;
-	bool currentState = PORTB.IN & (1 << 3);
-	//If the button was released, reset the relay state
-	if(previousState == false && currentState == true) {
-		setRelayState(false);
+	//Clear the overflow flag
+	TCA0.SINGLE.INTFLAGS = TCA_SINGLE_OVF_bm;
+	//If all the blinks have occurred
+	if(blinksRemaining == 0) {
+		//Run for 2 seconds
+		TCA0.SINGLE.PER = (F_CPU / 1024) * 2;
+		blinksRemaining = cause_blinkAmount;
+		previousState = true;
+		setLEDState(true);
 	}
-	previousState = currentState;
+	else {
+		setLEDState(!previousState);
+		//If the LED was just turned off
+		if(previousState)
+			blinksRemaining--;
+		previousState = !previousState;
+		//Wait for 200ms (1 second divided by 5)
+		TCA0.SINGLE.PER = (F_CPU / 1024) / 5;
+	}
 }
 
 //Interrupt where things are sampled (regular, every 10ms)	
 ISR(TCB0_INT_vect) {
+	//Check whether the BMS data has been retrieved within Keepalive_maxCycles
 	totalCycles++;
 	if(++keepalive_cycles >= Keepalive_maxCycles) {
 		setLEDBlinkingState(true);
@@ -243,7 +302,7 @@ ISR(TCB0_INT_vect) {
 		ADC0.COMMAND = ADC_STCONV_bm;
 		while(ADC0.COMMAND & ADC_STCONV_bm);
 		//Store the result as lower byte -> higher byte
-		volatile uint16_t const result = (ADC0.RES / 1) + errorOffset;	//Div because of the accumulator
+		volatile uint16_t const result = (ADC0.RES / 4) + errorOffset;	//Div because of the accumulator
 		dataBuffer[bufferChoice][i * 2] = result & 0x00ff;
 		dataBuffer[bufferChoice][i * 2 + 1] = (result & 0xff00) >> 8;
 	}
@@ -256,16 +315,24 @@ ISR(TCB0_INT_vect) {
 	volatile float current = acs711_current(acs711OutV, vcc);
 	volatile float temperature = calculateTemperature(retreiveFromBuffer(dataBuffer[bufferChoice], DataIndexes::TemperatureADC));
 	//Make sure that VCC is still high enough
-	relayAssert(vcc > CutoffVoltage, Trigger::Voltage);
+	snprintf(str_triggerCause, sizeof str_triggerCause, "Cell0 %-#3.2f", static_cast<double>(vcc));
+	blinkAmount = Blink_Voltage;
+	relayAssert(vcc > CutoffVoltage);
 	//Make sure that all the other cells are still high enough
-	for(uint8_t i = 0; i < 5; i++) {
+	for(unsigned int i = 0; i < 5; i++) {
 		volatile uint16_t adc_val = retreiveFromBuffer(dataBuffer[bufferChoice], static_cast<DataIndexes>(i + static_cast<uint8_t>(DataIndexes::Cell1ADC)));
 		volatile float voltage = vdiv_input(adc_voltage<uint16_t, 1024>(adc_val, 2.5f), 5.6f / 10.0f);
-		relayAssert(voltage > CutoffVoltage, Trigger::Voltage);
+		snprintf(str_triggerCause, sizeof str_triggerCause, "Cell%u %-#3.2f", i + 1, static_cast<double>(voltage));
+		blinkAmount = Blink_Voltage;
+		relayAssert(voltage > CutoffVoltage);
 	}
 	//Make sure that there is no over-current
-	relayAssert(current < CutoffCurrent, Trigger::Current);
+	snprintf(str_triggerCause, sizeof str_triggerCause, "Current %-#4.2f", static_cast<double>(current));
+	blinkAmount = Blink_Current;
+	relayAssert(current < CutoffCurrent);
 	//Check the temperature
+	snprintf(str_triggerCause, sizeof str_triggerCause, "Temp %-#5.2f", static_cast<double>(temperature));
+	blinkAmount = Blink_Temperature;
 	//relayAssert(temperature < CutoffTemperature);
 	dataBufferChoice = bufferChoice;
 }
@@ -285,6 +352,7 @@ ISR(SPI0_INT_vect) {
 			SPI0.DATA = dataBuffer[dataBufferChoice][dataBufferPos++];
 			break;
 		case Instruction::FireRelay:
+			snprintf(str_triggerCause, sizeof str_triggerCause, "Instruction");
 			setRelayState(true);
 			break;
 		case Instruction::LEDOn:
@@ -326,7 +394,7 @@ void setup() {
 	PORTB.PIN3CTRL = PORT_PULLUPEN_bm;
 
 	//Take accumulated samples
-	ADC0.CTRLB = ADC_SAMPNUM_ACC1_gc;
+	ADC0.CTRLB = ADC_SAMPNUM_ACC4_gc;
 	//Increase capacitance and prescale
 	ADC0.CTRLC = ADC_SAMPCAP_bm | ADC_PRESC_DIV32_gc;
 	//64 cycle channel change delay
@@ -344,7 +412,7 @@ void setup() {
 	CPUINT.LVL1VEC = SPI0_INT_vect_num;
 
 	//Set the CCMP (top) value for TCB0
-	constexpr uint32_t TCB0Top = static_cast<uint32_t>((20000000 / 2) / 200);
+	constexpr uint32_t TCB0Top = static_cast<uint32_t>((F_CPU / 2) / 200);
 	static_assert(TCB0Top <= 0xffff, "TCB0 top too large");
 	TCB0.CCMP = TCB0Top;
 	//Run a check/data update every 10ms.
@@ -352,9 +420,9 @@ void setup() {
 	TCB0.INTCTRL = TCB_CAPT_bm;
 
 	//Setup TCA to blink LED for 100ms every two seconds
-	constexpr uint32_t TCA0Top = static_cast<uint32_t>((20000000 / 1024) * 2);
+	constexpr uint32_t TCA0Top = static_cast<uint32_t>((F_CPU / 1024) * 2);
 	static_assert(TCA0Top <= 0xffff, "TCA0 top too large");
-	constexpr uint32_t TCA0Compare = static_cast<uint32_t>((20000000 / 1024) / 10);
+	constexpr uint32_t TCA0Compare = static_cast<uint32_t>((F_CPU / 1024) / 10);
 	static_assert(TCA0Compare <= 0xffff, "TCA0Compare too large");
 	//setLEDBlinkingState will switch TCA_SINGLE_CMP0_bm and TCA_SINGLE_ENABLE_bm
 	TCA0.SINGLE.CTRLB = TCA_SINGLE_CMP0_bm | TCA_SINGLE_WGMODE_SINGLESLOPE_gc;
