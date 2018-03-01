@@ -7,7 +7,10 @@
 
 #pragma once
 
+//Used for rpl_snprintf
+
 #if 1
+
 #ifndef __cplusplus
 #define vsnprintf rpl_vsnprintf
 #define snprintf rpl_snprintf

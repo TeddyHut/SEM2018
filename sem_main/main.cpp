@@ -6,101 +6,25 @@
  */ 
 
 
-#include <asf.h>
 #include <FreeRTOS.h>
 #include <task.h>
 #include <timers.h>
-#include <cstdio>
-#include <array>
+
+#include <asf.h>
+
 #include "main_config.h"
-#include "instance.h"
-#include "dep_instance.h"
-#include "manualserial.h"
-#include "runmanagement.h"
-#include "emc1701.h"
-
-//"Beep beep" at startup
-void buzzerStartup(Buzzer &buz) {
-	for(uint8_t i = 0; i < 2; i++) {
-		buz.start();
-		vTaskDelay(msToTicks(100));
-		buz.stop();
-		vTaskDelay(msToTicks(75));
-	}
-}
-
-//LED blinks at startup
-void ledStartup(LED &led) {
-	for(uint8_t i = 0; i < 2; i++) {
-		led.setLEDState(true);
-		vTaskDelay(msToTicks(100));
-		led.setLEDState(false);
-		vTaskDelay(msToTicks(75));
-	}
-}
-
-void servofinished_beep(Buzzer &buz) {
-	buz.start();
-	vTaskDelay(msToTicks(100));
-	buz.stop();
-}
-
-void aliveBlink(LED &buz) {
-	buz.setLEDState(true);
-	vTaskDelay(msToTicks(100));
-	buz.setLEDState(false);
-}
-
-void servo0_startup_callback(TimerHandle_t timer) {
-	port_pin_set_output_level(config::servopower::servo0_power_pin, true);
-	runtime::buzzermanager->registerSequence(servofinished_beep);
-}
-
-void servo1_startup_callback(TimerHandle_t timer) {
-	port_pin_set_output_level(config::servopower::servo1_power_pin, true);
-	runtime::buzzermanager->registerSequence(servofinished_beep);
-}
-
-//void servoReg_startup_callback(TimerHandle_t timer) {
-//	port_pin_set_output_level(config::servopower::servo_regulatorEnable_pin, true);
-//	runtime::buzzermanager->registerSequence(servofinished_beep);
-//}
-
-void activeCallback(TimerHandle_t timer) {
-	runtime::vbLEDmanager->registerSequence(aliveBlink);
-}
+#include "runtime/hardwareruntime/hardwareruntime.h"
 
 void main_task(void *const param) {
 	//Init runtime
-	runtime::init();
-	runtime::dep_init();
-	
-	//Register startup sequence
-	runtime::buzzermanager->registerSequence(buzzerStartup);
-	runtime::vbBuzzermanager->registerSequence(buzzerStartup);
-	runtime::greenLEDmanager->registerSequence(ledStartup);
-	runtime::redLEDmanager->registerSequence(ledStartup);
-	runtime::vbLEDmanager->registerSequence(ledStartup);
-	runtime::viewerboard->clearDisplay();
-	runtime::viewerboard->send();
-
-	//Put motors and servos in default positions
-	runtime::motor0->setDutyCycle(0);
-	runtime::motor1->setDutyCycle(0);
-	runtime::servo0->setPosition(config::run::servo0restposition);
-	runtime::servo1->setPosition(config::run::servo1restposition);
 
 #if (ENABLE_MANUALSERIAL == 1)
 	ManualSerial manserial;
 	manserial.init();
 #endif
-	
-	xTimerStart(xTimerCreate("aliveBlink", msToTicks(5000), pdTRUE, 0, activeCallback), portMAX_DELAY);
-	//xTimerStart(xTimerCreate("servoReg_start", msToTicks(2000), pdFALSE, 0, servoReg_startup_callback), portMAX_DELAY);
-	xTimerStart(xTimerCreate("servo0startup", msToTicks(3000), pdFALSE, 0, servo0_startup_callback), portMAX_DELAY);
-	xTimerStart(xTimerCreate("servo1startup", msToTicks(4000), pdFALSE, 0, servo1_startup_callback), portMAX_DELAY);
 
-	runmanagement::run();
+	hardwareruntime::init();
+	while(true);
 }
 
 //Enable program counter trace
@@ -138,24 +62,22 @@ int main(void)
 	port_get_config_defaults(&outconfig);
 	outconfig.direction = PORT_PIN_DIR_OUTPUT;
 	//Motors
-	port_pin_set_config(config::motor::motor0_pin, &outconfig);
-	port_pin_set_config(config::motor::motor1_pin, &outconfig);
-	port_pin_set_output_level(config::motor::motor0_pin, false);
-	port_pin_set_output_level(config::motor::motor1_pin, false);
+	port_pin_set_config(config::pins::motor0, &outconfig);
+	port_pin_set_config(config::pins::motor1, &outconfig);
+	port_pin_set_output_level(config::pins::motor0, false);
+	port_pin_set_output_level(config::pins::motor1, false);
 
 	//Servos
-	port_pin_set_config(config::servopower::servo0_power_pin, &outconfig);
-	port_pin_set_config(config::servopower::servo1_power_pin, &outconfig);
-	port_pin_set_output_level(config::servopower::servo0_power_pin, false);
-	port_pin_set_output_level(config::servopower::servo1_power_pin, false);
-
-	//port_pin_set_output_level(config::servopower::servo1_power_pin, true);
+	port_pin_set_config(config::pins::servopower0, &outconfig);
+	port_pin_set_config(config::pins::servopower1, &outconfig);
+	port_pin_set_output_level(config::pins::servopower0, false);
+	port_pin_set_output_level(config::pins::servopower1, false);
 
 	TaskHandle_t task;
 	xTaskCreate(main_task, "main", 512, nullptr, 1, &task);
 
 	vTaskStartScheduler();
-	debugbreak();
+	//debugbreak();
 	while(true);
 }
 
@@ -212,7 +134,7 @@ void HardFault_HandlerC(unsigned long *hardfault_args){
 	_BFAR = (*((volatile unsigned long *)(0xE000ED38))) ;
 	
 	//Stop movement
-	stopmovement();
+	//stopmovement();
 
 	__asm("BKPT #0\n") ; // Break into the debugger
 }

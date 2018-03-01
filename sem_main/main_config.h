@@ -7,10 +7,15 @@
 
 #pragma once
 
-#include <FreeRTOS.h>
 #include <cstddef>
 #include <cinttypes>
+
+#include <FreeRTOS.h>
+
 #include <tcc.h>
+#include <adc.h>
+
+#include "utility/conversions.h"
 
 #define BOARD_NUMBER 1
 
@@ -31,18 +36,6 @@
 #define ENABLE_MANUALSERIAL 0
 #define ENABLE_ADPCONTROL 1
 
-constexpr TickType_t msToTicks(float const ms) {
-	return (ms / 1000.0f) * configTICK_RATE_HZ;
-}
-
-constexpr float kmhToMs(float const kmh) {
-	return kmh / 3.6;
-}
-
-constexpr float msToKmh(float const ms) {
-	return ms * 3.6;
-}
-
 namespace config {
 	namespace run {
  		constexpr float servo0restposition = 90;
@@ -50,8 +43,8 @@ namespace config {
 		constexpr float servo1restposition = 136;
 		constexpr float servo1engagedposition = 118;
 
-		constexpr float minimumspeed = kmhToMs(22);
-		constexpr float maximumspeed = kmhToMs(28);
+		constexpr float minimumspeed = utility::conversions::kmhToMs(22.0f);
+		constexpr float maximumspeed = utility::conversions::kmhToMs(28.0f);
 
 		constexpr float ramuptime = 10;
 		constexpr float servoengagetime = 0.1;
@@ -67,9 +60,9 @@ namespace config {
 		constexpr float alertmotorcurrent = 4;
 		constexpr float shotdownmotorcurrent = 6;
 
-		constexpr TickType_t displaycycleperiod = msToTicks(5000);
-		constexpr TickType_t displayrefreshrate = msToTicks(100);
-		constexpr TickType_t refreshRate = msToTicks(1000.0f / 60.0f);
+		constexpr TickType_t displaycycleperiod = utility::conversions::msToTicks(5000.0f);
+		constexpr TickType_t displayrefreshrate = utility::conversions::msToTicks(100.0f);
+		constexpr TickType_t refreshRate = utility::conversions::msToTicks(1000.0f / 60.0f);
 		constexpr float speedmatchcorrecttimeout = 1.5f;
 
 		constexpr size_t buttonBufferSize = 10;
@@ -78,15 +71,15 @@ namespace config {
 		constexpr float motortogeartickratio = 0.482; //Enoder0.getinterval / encoder2.getinterval
 		constexpr float motorteeth = 12;
 		constexpr float wheelradius = 0.43 / 2;
+		constexpr float vcc = 3.3f;
 	}
 	namespace adpcontrol {
 		constexpr uint16_t taskStackDepth = 256;
-		constexpr char const * taskName = "ADPControl";
+		constexpr char const * taskName = "ADP";
 		constexpr unsigned int taskPriority = 1;
 	}
 	namespace servo {
 		constexpr float clockFrequency = 39999900;
-		//48000000;
 		constexpr float period = 0.02;
 		constexpr float servominpulse = 0.000544;
 		constexpr float servomaxpulse = 0.0024;
@@ -94,30 +87,17 @@ namespace config {
 		constexpr float deviation0 = ((servomaxpulse - servominpulse) / 2.0f);
 		constexpr float midpoint1 = ((servomaxpulse + servominpulse) / 2.0f);
 		constexpr float deviation1 = ((servomaxpulse - servominpulse) / 2.0f);
-		
-		//For old servos:
-		/*
-		constexpr float midpoint0 = ((0.00155 + 0.001125) / 2.0f);
-		constexpr float deviation0 = ((0.00155 - 0.001125) / 2.0f);
-		constexpr float midpoint1 = ((0.0008 + 0.00048) / 2.0f);
-		constexpr float deviation1 =((0.0008 - 0.00048) / 2.0f);
-		*/
+
 		constexpr float minAngle = 0;
 		constexpr float maxAngle = 180;
-		constexpr float restAngle = 0;
-		constexpr float engagedAngle = 0;
 	}
 	namespace motor {
-		constexpr unsigned int motor0_pin = PIN_PA18;
-		constexpr unsigned int motor1_pin = PIN_PA22;
 		constexpr float clockFrequency = 8000000;
 		constexpr float period = (1.0f / 100000.0f);
 	}
-	namespace buzzermanager {
-		constexpr size_t sequenceQueueSize = 2;
-	}
-	namespace ledmanager {
-		constexpr size_t sequenceSqueueSize = 2;
+	namespace motorcurrent {
+		constexpr adc_positive_input input_motor0 = ADC_POSITIVE_INPUT_PIN1;
+		constexpr adc_positive_input input_motor1 = ADC_POSITIVE_INPUT_PIN0;
 	}
 	namespace buzzer {
 		constexpr float clockFrequency = 8000000;
@@ -133,51 +113,46 @@ namespace config {
 	namespace viewerboard {
 		constexpr size_t baudrate = 9600;
 		constexpr size_t pendingQueueSize = 1;
-		constexpr char const * taskName = "ViewerBoard";
+		constexpr char const * taskName = "VRB";
 		constexpr uint16_t taskStackDepth = 96;
 		constexpr unsigned int taskPriority = 1;
 		constexpr size_t transmitTimeout = 100;
 	}
-	namespace feedbackmanager {
-		constexpr char const * taskName = "FeedbackManager";
-		constexpr uint16_t taskStackDepth = 52;
-		constexpr unsigned int taskPriority = 1;
-	}
 	namespace bms {
 		constexpr char const * taskName = "BMS";
-		constexpr uint16_t taskStackDepth = 96;
+		constexpr uint16_t taskStackDepth = 64;
 		constexpr unsigned int taskPriority = 1;
-		constexpr size_t refreshRate = msToTicks(100);
-		constexpr unsigned int bms0_ss_pin = PIN_PA11;
-		constexpr unsigned int bms1_ss_pin = PIN_PB08;
+		constexpr size_t refreshRate = utility::conversions::msToTicks(100.0f);
 	}
 	namespace spimanager {
 		constexpr size_t baudrate = 100000;
-		constexpr char const * taskName = "SPIManager";
+		constexpr char const * taskName = "SPI";
 		constexpr uint16_t taskStackDepth = 64;
 		constexpr unsigned int taskPriority = 1;
 		constexpr size_t pendingQueueSize = 2;
 	}
 	namespace twimanager {
-		constexpr char const * taskName = "TWIManager";
+		constexpr char const * taskName = "TWI";
 		constexpr uint16_t taskStackDepth = 64;
 		constexpr unsigned int taskPriority = 1;
 		constexpr size_t pendingQueueSize = 2;
 	}
-	namespace led {
-		constexpr unsigned int greenLED_pin = PIN_PA28;
-		constexpr unsigned int redLED_pin = PIN_PA27;
+	namespace adcmanager {
+		constexpr char const * taskName = "ADC";
+		constexpr uint16_t taskStackDepth = 32;
+		constexpr unsigned int taskPriority = 1;
+		constexpr size_t pendingQueueSize = 2;
 	}
 	namespace manualserial {
-		constexpr char const * taskName = "ManualSerial";
-		constexpr uint16_t taskStackDepth = 256;
+		constexpr char const * taskName = "MAN";
+		constexpr uint16_t taskStackDepth = 128;
 		constexpr unsigned int taskPriority = 1;
 	}
 	namespace emc1701 {
-		constexpr char const * taskName = "EMC1701";
+		constexpr char const * taskName = "EMC";
 		constexpr uint16_t taskStackDepth = 32;
 		constexpr unsigned int taskPriority = 1;
-		constexpr size_t refreshRate = msToTicks(125);
+		constexpr size_t refreshRate = utility::conversions::msToTicks(125.0f);
 
 		constexpr float referenceVoltage = 0.01f;
 		constexpr float currentResistor = 0.02f;
@@ -186,9 +161,14 @@ namespace config {
 		constexpr uint8_t address_3v3 = 0b1001100;
 		constexpr uint8_t address_5v = 0b1001101;
 	}
-	namespace servopower {
-		constexpr unsigned int servo_regulatorEnable_pin = PIN_PA23;
-		constexpr unsigned int servo0_power_pin = PIN_PA07;
-		constexpr unsigned int servo1_power_pin = SERVO1_ENABLE_PIN;
+	namespace pins {
+		constexpr unsigned int servopower0 = PIN_PA07;
+		constexpr unsigned int servopower1 = SERVO1_ENABLE_PIN;
+		constexpr unsigned int redled = PIN_PA27;
+		constexpr unsigned int greenled = PIN_PA28;
+		constexpr unsigned int bms_ss0 = PIN_PA11;
+		constexpr unsigned int bms_ss1 = PIN_PB08;
+		constexpr unsigned int motor0 = PIN_PA18;
+		constexpr unsigned int motor1 = PIN_PA22;
 	}
 }

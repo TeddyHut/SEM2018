@@ -775,7 +775,7 @@
   <armgcccpp.linker.miscellaneous.LinkerFlags>-Tsamd21g17a_flash.ld</armgcccpp.linker.miscellaneous.LinkerFlags>
   <armgcccpp.linker.miscellaneous.OtherOptions>
     <ListValues>
-      <Value>--defsym=STACK_SIZE=256</Value>
+      <Value>--defsym=STACK_SIZE=1024</Value>
     </ListValues>
   </armgcccpp.linker.miscellaneous.OtherOptions>
   <armgcccpp.assembler.general.IncludePaths>
@@ -879,61 +879,13 @@
     </ToolchainSettings>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="adpcontrol.cpp">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="adpcontrol.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="bms.cpp">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="bms.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="buzzer.cpp">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="buzzer.h">
-      <SubType>compile</SubType>
-    </Compile>
     <Compile Include="c99-snprintf\snprintf.c">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="config.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="feedbackmanager.h">
-      <SubType>compile</SubType>
-    </Compile>
     <Compile Include="freertos\portable\MemMang\heap_4.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="main_config.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="sensor.cpp">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="sensor.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="dep_instance.cpp">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="dep_instance.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="emc1701.cpp">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="emc1701.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="encoder.cpp">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="encoder.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="freertos\include\FreeRTOS.h">
@@ -996,73 +948,127 @@
     <Compile Include="freertos\timers.c">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="gpioinput.h">
+    <Compile Include="hardware\adcmanager\adcmanager.cpp">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="instance.cpp">
+    <Compile Include="hardware\adcmanager\adcmanager.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="instance.h">
+    <Compile Include="hardware\bms\bms.cpp">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="lcd.cpp">
+    <Compile Include="hardware\bms\bms.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="lcd.h">
+    <Compile Include="hardware\buzzer\buzzer.cpp">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="leds.cpp">
+    <Compile Include="hardware\buzzer\buzzer.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="leds.h">
+    <Compile Include="hardware\emc1701\emc1701.cpp">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\emc1701\emc1701.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\encoder\encoder.cpp">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\encoder\encoder.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\feedback\feedbackitem.cpp">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\feedback\feedbackitem.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\gpioinput\gpioinput.cpp">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\gpioinput\gpioinput.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\gpiooutput\gpiooutput.cpp">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\gpiooutput\gpiooutput.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\motorcurrent\motorcurrent.cpp">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\motorcurrent\motorcurrent.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\motor\motor.cpp">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\motor\motor.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\rtc\rtc.cpp">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\rtc\rtc.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\sensor.cpp">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\sensor.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\servo\servo.cpp">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\servo\servo.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\spimanager\spimanager.cpp">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\spimanager\spimanager.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\twimanager\twimanager.cpp">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\twimanager\twimanager.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\utility\timer.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\viewerboard\viewerboard.cpp">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="hardware\viewerboard\viewerboard.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="main.cpp">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="manualserial.cpp">
+    <Compile Include="main_config.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="manualserial.h">
+    <Compile Include="utility\conversions.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="motor.cpp">
+    <Compile Include="utility\freertos_task.cpp">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="motor.h">
+    <Compile Include="utility\freertos_task.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="run.cpp">
+    <Compile Include="utility\memory.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="run.h">
+    <Compile Include="utility\rpl_printf.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="runcommon.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="rundisplay.cpp">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="rundisplay.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="runmanagement.cpp">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="runmanagement.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="servo.cpp">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="servo.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="spimanager.cpp">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="spimanager.h">
+    <Compile Include="utility\valuematch.h">
       <SubType>compile</SubType>
     </Compile>
     <None Include="src\ASF\sam0\drivers\rtc\rtc_count.h">
@@ -1074,6 +1080,18 @@
     <None Include="src\ASF\sam0\drivers\rtc\rtc_tamper.h">
       <SubType>compile</SubType>
     </None>
+    <Compile Include="runtime\hardwareruntime\hardwareruntime.cpp">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="runtime\hardwareruntime\hardwareruntime.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="runtime\runtime\runtime.cpp">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="runtime\runtime\runtime.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="src\ASF\common\services\adp\adp.c">
       <SubType>compile</SubType>
     </Compile>
@@ -1087,15 +1105,6 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="src\ASF\sam0\drivers\rtc\rtc_sam_d_r_h\rtc_count_interrupt.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="twimanager.cpp">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="twimanager.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="valuematch.h">
       <SubType>compile</SubType>
     </Compile>
     <None Include="src\ASF\common\services\serial\sam0_usart\usart_serial.h">
@@ -1120,12 +1129,6 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="src\ASF\sam0\utils\stdio\write.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="util.cpp">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="util.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="src\ASF\sam0\drivers\sercom\i2c\i2c_sam0\i2c_master.c">
@@ -1803,6 +1806,29 @@
     <Folder Include="freertos\portable\GCC\" />
     <Folder Include="freertos\portable\GCC\ARM_CM0\" />
     <Folder Include="freertos\portable\MemMang\" />
+    <Folder Include="hardware\" />
+    <Folder Include="hardware\adcmanager\" />
+    <Folder Include="hardware\bms\" />
+    <Folder Include="hardware\buzzer\" />
+    <Folder Include="hardware\debug\" />
+    <Folder Include="hardware\debug\adpcontrol\" />
+    <Folder Include="hardware\debug\manualserial\" />
+    <Folder Include="hardware\emc1701\" />
+    <Folder Include="hardware\encoder\" />
+    <Folder Include="hardware\feedback\" />
+    <Folder Include="hardware\gpioinput\" />
+    <Folder Include="hardware\gpiooutput\" />
+    <Folder Include="hardware\motorcurrent\" />
+    <Folder Include="hardware\motor\" />
+    <Folder Include="hardware\rtc\" />
+    <Folder Include="hardware\servo\" />
+    <Folder Include="hardware\spimanager\" />
+    <Folder Include="hardware\twimanager\" />
+    <Folder Include="hardware\utility\" />
+    <Folder Include="hardware\viewerboard\" />
+    <Folder Include="runtime\" />
+    <Folder Include="runtime\hardwareruntime\" />
+    <Folder Include="runtime\runtime\" />
     <Folder Include="src\" />
     <Folder Include="src\ASF\" />
     <Folder Include="src\ASF\common2\" />
@@ -1892,6 +1918,7 @@
     <Folder Include="src\ASF\thirdparty\CMSIS\Lib\" />
     <Folder Include="src\ASF\thirdparty\CMSIS\Lib\GCC\" />
     <Folder Include="src\config\" />
+    <Folder Include="utility\" />
   </ItemGroup>
   <Import Project="$(AVRSTUDIO_EXE_PATH)\\Vs\\Compiler.targets" />
 </Project>
