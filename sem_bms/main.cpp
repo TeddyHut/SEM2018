@@ -5,16 +5,18 @@
  * Author : teddy
  */ 
 
+#define BMS_NUMBER 2
+#define F_CPU 20000000
+
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
+#include <avr/cpufunc.h>
+#include <util/delay_basic.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-
-#define BMS_NUMBER 2
-#define F_CPU 20000000
 
 #if (BMS_NUMBER == 1)
 #define ERROR_OFFSET_CURRENT 1
@@ -29,6 +31,7 @@
 constexpr float CutoffCurrent = 5;
 constexpr float CutoffTemperature = 100;
 constexpr float CutoffVoltage = 3;
+constexpr float KillVoltage = 2.9;
 constexpr unsigned int Keepalive_maxCycles = 50; //For 10ms ISR updates this should be 500ms.
 //Number of cycles that there has to be an error for before firing
 constexpr unsigned int ConsecutiveErrors = 10;
@@ -121,15 +124,15 @@ constexpr ADC_MUXPOS_enum ADCMap[static_cast<unsigned int>(DataIndexes::_size)] 
 	ADC_MUXPOS_AIN8_gc	//Cell5
 };
 
+//Used to store the (potential) cause of a relay firing. Will be written to eeprom if the relay fires
+char str_triggerCause[16];
+
 //Using a double buffer (*2 since values are 16 bit)
-volatile uint8_t dataBuffer[2][static_cast<unsigned int>(DataIndexes::_size) * 2];
+volatile uint8_t dataBuffer[2][(static_cast<unsigned int>(DataIndexes::_size) * 2) + (sizeof str_triggerCause / sizeof *str_triggerCause)];
 volatile uint8_t dataBufferPos = 0;
 volatile uint8_t dataBufferChoice = 0;
 
-//Used to store the (potential) cause of a relay firing. Will be written to eeprom if the relay fires
-char str_triggerCause[16];
 //Stores the amount of times the LED should blink if it is triggered
-volatile LEDBlinkAmount blinkAmount = Blink_Button;
 volatile LEDBlinkAmount cause_blinkAmount = Blink_Button;
 //Number of cycles of the timer ISR
 uint32_t totalCycles = 0;
@@ -152,15 +155,15 @@ void nvm_command(NVMCTRL_CMD_t const cmd) {
 	NVMCTRL.CTRLA = cmd;
 }
 
-void writeCause() {
+void writeCause(char const *const str_error) {
 	//Wait for eeprom to not be busy
 	while(NVMCTRL.STATUS & NVMCTRL_EEBUSY_bm);
 	//Clear the NVM page buffer
 	nvm_command(NVMCTRL_CMD_PAGEBUFCLR_gc);
 	//Write values to eeprom mapped area
-	strncpy(reinterpret_cast<char *>(EEPROM_START), str_triggerCause, sizeof str_triggerCause);
-	//Write values to eeprom
-	nvm_command(NVMCTRL_CMD_PAGEWRITE_gc);
+	strncpy(reinterpret_cast<char *>(EEPROM_START), str_error, sizeof str_triggerCause / sizeof *str_triggerCause);
+	//Erase page, and write values to eeprom
+	nvm_command(NVMCTRL_CMD_PAGEERASEWRITE_gc);
 }
 
 void setLEDState(bool const state) {
@@ -181,14 +184,14 @@ void setLEDBlinkingState(bool const state) {
 	}
 }
 
-void setRelayState(bool const state) {
+void setRelayState(bool const state, LEDBlinkAmount const blinkAmount = Blink_Button, char const *const str_error = nullptr) {
 	if(state && !relay_fired) {
 		//Set the relay state
 		PORTA.OUTSET = 1 << 5;
 		//Stop idle blinking
 		setLEDBlinkingState(false);
 		setLEDState(false);
-		//Enable cause blinking
+		//Set the blink amount that caused to relay to fire (for ISR)
 		cause_blinkAmount = blinkAmount;
 		//Enable overflow interrupt
 		TCA0.SINGLE.INTCTRL = TCA_SINGLE_OVF_bm;
@@ -199,7 +202,8 @@ void setRelayState(bool const state) {
 		//Enable the timer
 		TCA0.SINGLE.CTRLA |= TCA_SINGLE_ENABLE_bm;
 		//Write cause to eeprom
-		writeCause();
+		if(str_error != nullptr)
+			writeCause(str_error);
 	}
 	else if (!state) {
 		PORTA.OUTCLR = 1 << 5;
@@ -208,17 +212,23 @@ void setRelayState(bool const state) {
 	relay_fired = state;
 }
 
-void relayAssert(bool const result) {
+void relayAssert(bool const result, LEDBlinkAmount const blinkAmount) {
 	//Check that for the buffer the functions are being called from separate cycles (as opposed to multiple from the same cycle)
 	static uint32_t lastCycle = 0;
 	static unsigned int consecutiveErrors = 0;
 	static bool wasSetLastCycle = false;
+	static LEDBlinkAmount errorBlinkAmount = Blink_Button;
+	static char str_error[16];
+	if(!result) {
+		strncpy(str_error, str_triggerCause, sizeof str_triggerCause / sizeof *str_triggerCause);
+		errorBlinkAmount = blinkAmount;
+	}
 
 	if(lastCycle != totalCycles) {
 		//A new cycle
-		if(wasSetLastCycle && (++consecutiveErrors == ConsecutiveErrors)) {
+		if(wasSetLastCycle && (consecutiveErrors++ == ConsecutiveErrors)) {
 			relaytimeout_cycles = RelayTimeout_cycles;
-			setRelayState(true);
+			setRelayState(true, errorBlinkAmount, str_error);
 		}
 		else if (wasSetLastCycle == false)
 			consecutiveErrors = 0;
@@ -230,9 +240,8 @@ void relayAssert(bool const result) {
 
 void button_update() {
 	//Assert that the button is not held
-	snprintf(str_triggerCause, sizeof str_triggerCause, "Button Pressed");
-	blinkAmount = Blink_Button;
-	relayAssert(PORTB.IN & (1 << 3));
+	snprintf(str_triggerCause, sizeof str_triggerCause / sizeof *str_triggerCause, "Button Pressed");
+	relayAssert(PORTB.IN & (1 << 3), Blink_Button);
 }
 
 ISR(TCA0_OVF_vect) {
@@ -315,25 +324,43 @@ ISR(TCB0_INT_vect) {
 	volatile float current = acs711_current(acs711OutV, vcc);
 	volatile float temperature = calculateTemperature(retreiveFromBuffer(dataBuffer[bufferChoice], DataIndexes::TemperatureADC));
 	//Make sure that VCC is still high enough
-	snprintf(str_triggerCause, sizeof str_triggerCause, "Cell0 %-#3.2f", static_cast<double>(vcc));
-	blinkAmount = Blink_Voltage;
-	relayAssert(vcc > CutoffVoltage);
+	snprintf(str_triggerCause, sizeof str_triggerCause / sizeof *str_triggerCause, "Cell0 %-#3.2f", static_cast<double>(vcc));
+	relayAssert(vcc > CutoffVoltage, Blink_Voltage);
+	//If VCC gets less than 2.9V fire relay (should already be fired, but just in case), disable isolator, and put the processor into deepest sleep mode
+	if(vcc <= KillVoltage) {
+		//Stop interrupts
+		cli();
+		//Turn off LED if on
+		setLEDBlinkingState(false);
+		setLEDState(false);
+		//Disable isolator
+		PORTB.OUTCLR = 1 << 2;
+		//Fire relay
+		setRelayState(true, Blink_Voltage, "Killed");
+		//Wait for around 300ms
+		for(uint8_t i = 0; i < 25; i++) {
+			_delay_loop_2(0xffff);
+		}
+		setRelayState(false);
+		//Set sleep mode to power down
+		SLPCTRL.CTRLA = SLPCTRL_SMODE_PDOWN_gc | SLPCTRL_SEN_bm;
+		//Go to sleep
+		sleep_cpu();
+		//Never to be woken again
+	}
 	//Make sure that all the other cells are still high enough
 	for(unsigned int i = 0; i < 5; i++) {
 		volatile uint16_t adc_val = retreiveFromBuffer(dataBuffer[bufferChoice], static_cast<DataIndexes>(i + static_cast<uint8_t>(DataIndexes::Cell1ADC)));
 		volatile float voltage = vdiv_input(adc_voltage<uint16_t, 1024>(adc_val, 2.5f), 5.6f / 10.0f);
-		snprintf(str_triggerCause, sizeof str_triggerCause, "Cell%u %-#3.2f", i + 1, static_cast<double>(voltage));
-		blinkAmount = Blink_Voltage;
-		relayAssert(voltage > CutoffVoltage);
+		snprintf(str_triggerCause, sizeof str_triggerCause / sizeof *str_triggerCause, "Cell%u %-#3.2f", i + 1, static_cast<double>(voltage));
+		relayAssert(voltage > CutoffVoltage, Blink_Voltage);
 	}
 	//Make sure that there is no over-current
-	snprintf(str_triggerCause, sizeof str_triggerCause, "Current %-#4.2f", static_cast<double>(current));
-	blinkAmount = Blink_Current;
-	relayAssert(current < CutoffCurrent);
+	snprintf(str_triggerCause, sizeof str_triggerCause / sizeof *str_triggerCause, "Current %-#4.2f", static_cast<double>(current));
+	relayAssert(current < CutoffCurrent, Blink_Current);
 	//Check the temperature
-	snprintf(str_triggerCause, sizeof str_triggerCause, "Temp %-#5.2f", static_cast<double>(temperature));
-	blinkAmount = Blink_Temperature;
-	//relayAssert(temperature < CutoffTemperature);
+	snprintf(str_triggerCause, sizeof str_triggerCause / sizeof *str_triggerCause, "Temp %-#5.2f", static_cast<double>(temperature));
+	//relayAssert(temperature < CutoffTemperature, Blink_Temperature);
 	dataBufferChoice = bufferChoice;
 }
 
@@ -347,12 +374,12 @@ ISR(SPI0_INT_vect) {
 			dataBufferPos = 0;
 			//Fallthrough intentional
 		case Instruction::Normal:
-			if(dataBufferPos >= static_cast<unsigned int>(DataIndexes::_size) * 2)
+			if(dataBufferPos >= (sizeof dataBuffer[0] / sizeof *(dataBuffer[0])))
 				dataBufferPos = 0;
 			SPI0.DATA = dataBuffer[dataBufferChoice][dataBufferPos++];
 			break;
 		case Instruction::FireRelay:
-			snprintf(str_triggerCause, sizeof str_triggerCause, "Instruction");
+			snprintf(str_triggerCause, sizeof str_triggerCause / sizeof *str_triggerCause, "Instruction");
 			setRelayState(true);
 			break;
 		case Instruction::LEDOn:
@@ -429,6 +456,10 @@ void setup() {
 	TCA0.SINGLE.PER = TCA0Top;
 	TCA0.SINGLE.CMP0 = TCA0Compare;
 	TCA0.SINGLE.CTRLA = TCA_SINGLE_CLKSEL_DIV1024_gc | TCA_SINGLE_ENABLE_bm;
+
+	//Copy last trigger cause to end of both dataBuffers (const to cast away volatile, reinterpret to convert to char from unsigned char, static to convert from enum class to int)
+	strncpy(const_cast<char *>(reinterpret_cast<char volatile *>(&(dataBuffer[0][static_cast<unsigned int>(DataIndexes::_size) * 2]))), reinterpret_cast<char *>(EEPROM_START), sizeof str_triggerCause / sizeof *str_triggerCause);
+	strncpy(const_cast<char *>(reinterpret_cast<char volatile *>(&(dataBuffer[1][static_cast<unsigned int>(DataIndexes::_size) * 2]))), reinterpret_cast<char *>(EEPROM_START), sizeof str_triggerCause / sizeof *str_triggerCause);
 
 	//Enable global interrupts
 	sei();
