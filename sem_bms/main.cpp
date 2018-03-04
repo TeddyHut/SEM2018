@@ -1,9 +1,8 @@
 /*
- * sem_bms.cpp
- *
- * Created: 22/01/2018 3:37:31 PM
- * Author : teddy
- */ 
+ * Girton Grammar School Shell Eco Marathon Asia
+ * 6-cell lithium-ion battery management system
+ * This code is designed for an Atmel ATtiny816, to be compiled with AVR-GCC
+ */
 
 #define BMS_NUMBER 2
 #define F_CPU 20000000
@@ -12,12 +11,14 @@
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
 #include <avr/cpufunc.h>
+#include <avr/wdt.h>
 #include <util/delay_basic.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
 
+//Due to slight variation between components on boards, these values can be used as a calibration
 #if (BMS_NUMBER == 1)
 #define ERROR_OFFSET_CURRENT 1
 #define ERROR_OFFSET_VCC 4
@@ -28,13 +29,17 @@
 #define ERROR_OFFSET_TEMPERATURE 0
 #endif
 
+
 constexpr float CutoffCurrent = 5;
-constexpr float CutoffTemperature = 100;
-constexpr float CutoffVoltage = 3;
-constexpr float KillVoltage = 2.9;
-constexpr unsigned int Keepalive_maxCycles = 50; //For 10ms ISR updates this should be 500ms.
+constexpr float CutoffTemperature = 80;
+constexpr float CutoffVoltage = 3.15;
+constexpr float MaximumVoltage = 4.3;
+constexpr float KillVoltage = 3;
+
+//Cycles before BMS determines that main board isn't connected
+constexpr unsigned int Keepalive_maxCycles = 50;
 //Number of cycles that there has to be an error for before firing
-constexpr unsigned int ConsecutiveErrors = 10;
+constexpr unsigned int ConsecutiveErrors = 4;
 //The number of cycles after firing the relay before stopping current flow through the relay
 constexpr unsigned int RelayTimeout_cycles = 50;
 
@@ -57,16 +62,17 @@ constexpr adc_t adc_value(float const voltage, float const vref) {
 }
 
 float milliVoltsToDegreesC(float const m) {
+	//Taken from temperature sensor datasheet
 	float result = 2230.8 - m;
 	result *= (4 * 0.00433);
-	result += square(-13.528);
+	result += square(-13.582);
 	result = 13.582 - sqrt(result);
 	result /= (2 * -0.00433);
 	return result + 30;
 }
 
 float calculateTemperature(uint16_t const value) {
-	return milliVoltsToDegreesC(vdiv_input(adc_voltage<uint16_t, 1024>(value, 1.1f), vdiv_factor(5.1f, 7.5f)) * 1000.0f);
+	return milliVoltsToDegreesC(vdiv_input(adc_voltage<uint16_t, 1024>(value, 2.5f), vdiv_factor(5.1f, 7.5f)) * 1000.0f);
 }
 
 //Output value of the ACS711 current sensor for a particular current
@@ -110,7 +116,8 @@ enum LEDBlinkAmount {
 	Blink_Button = 0,
 	Blink_Temperature = 1,
 	Blink_Voltage = 2,
-	Blink_Current = 3,
+	Blink_OverVoltage = 3,
+	Blink_Current = 4,
 };
 
 constexpr ADC_MUXPOS_enum ADCMap[static_cast<unsigned int>(DataIndexes::_size)] = {
@@ -141,7 +148,7 @@ unsigned int keepalive_cycles = 0;
 //Used so that current doesn't have to constantly be flowing through relay if it is triggered
 unsigned int relaytimeout_cycles = 50;
 
-//Set to true if the relay is fired. Used to determine whether or not setBlinkingLEDState should work or not (LED should be permanently on if relay fired)
+//Set to true if the relay is fired. Used to determine whether or not setBlinkingLEDState should work or not
 bool relay_fired = false;
 
 uint16_t retreiveFromBuffer(volatile uint8_t const buffer[], DataIndexes const pos) {
@@ -212,6 +219,7 @@ void setRelayState(bool const state, LEDBlinkAmount const blinkAmount = Blink_Bu
 	relay_fired = state;
 }
 
+//Calling this function with a false -result- for ConsecutiveErrors sampling cycles will cause the relay to trigger
 void relayAssert(bool const result, LEDBlinkAmount const blinkAmount) {
 	//Check that for the buffer the functions are being called from separate cycles (as opposed to multiple from the same cycle)
 	static uint32_t lastCycle = 0;
@@ -244,6 +252,32 @@ void button_update() {
 	relayAssert(PORTB.IN & (1 << 3), Blink_Button);
 }
 
+void shutdown() {
+	//Stop interrupts
+	cli();
+	//Turn off watchdog
+	CCP = CCP_IOREG_gc;
+	WDT.CTRLA = WDT_PERIOD_OFF_gc;
+	//Turn off LED if on
+	setLEDBlinkingState(false);
+	setLEDState(false);
+	//Disable isolator
+	PORTB.OUTCLR = 1 << 2;
+	//Fire relay
+	setRelayState(true, Blink_Voltage, "Killed");
+	//Wait for around 300ms
+	for(uint8_t i = 0; i < 25; i++) {
+		_delay_loop_2(0xffff);
+		//Reset watchdog
+	}
+	setRelayState(false);
+	//Set sleep mode to power down
+	SLPCTRL.CTRLA = SLPCTRL_SMODE_PDOWN_gc | SLPCTRL_SEN_bm;
+	//Go to sleep
+	sleep_cpu();
+	//Never to be woken again
+}
+
 ISR(TCA0_OVF_vect) {
 	//Will be on for 2 seconds, and then blink quickly a certain amount of times depending on what the cause was
 	static uint8_t blinksRemaining = 0;
@@ -271,6 +305,10 @@ ISR(TCA0_OVF_vect) {
 
 //Interrupt where things are sampled (regular, every 10ms)	
 ISR(TCB0_INT_vect) {
+	//Clear the interrupt flag
+	TCB0.INTFLAGS = TCB_CAPT_bm;
+	//Reset the watchdog
+	wdt_reset();
 	//Check whether the BMS data has been retrieved within Keepalive_maxCycles
 	totalCycles++;
 	if(++keepalive_cycles >= Keepalive_maxCycles) {
@@ -284,9 +322,8 @@ ISR(TCB0_INT_vect) {
 		if(--relaytimeout_cycles == 0)
 			PORTA.OUTCLR = (1 << 5);
 	}
+	//Check button
 	button_update();
-	//Clear the interrupt flag
-	TCB0.INTFLAGS = TCB_CAPT_bm;
 	//Sample each ADC
 	uint8_t const bufferChoice = (dataBufferChoice == 0 ? 1 : 0);
 	for(uint8_t i = 0; i < static_cast<unsigned int>(DataIndexes::_size); i++) {
@@ -296,7 +333,7 @@ ISR(TCB0_INT_vect) {
 		//Clear and set reference voltages
 		VREF.CTRLA &= ~VREF_ADC0REFSEL_gm;
 		if(static_cast<DataIndexes>(i) == DataIndexes::TemperatureADC) {
-			VREF.CTRLA |= VREF_ADC0REFSEL_1V1_gc;
+			VREF.CTRLA |= VREF_ADC0REFSEL_2V5_gc;
 			errorOffset = ERROR_OFFSET_TEMPERATURE;
 		}
 		else if(static_cast<DataIndexes>(i) == DataIndexes::CurrentADC) {
@@ -326,41 +363,28 @@ ISR(TCB0_INT_vect) {
 	//Make sure that VCC is still high enough
 	snprintf(str_triggerCause, sizeof str_triggerCause / sizeof *str_triggerCause, "Cell0 %-#3.2f", static_cast<double>(vcc));
 	relayAssert(vcc > CutoffVoltage, Blink_Voltage);
-	//If VCC gets less than 2.9V fire relay (should already be fired, but just in case), disable isolator, and put the processor into deepest sleep mode
+	//Make sure that VCC is still low enough
+	relayAssert(vcc < MaximumVoltage, Blink_OverVoltage);
+	//If VCC gets less than 2.95V fire relay (should already be fired, but just in case), disable isolator, and put the processor into deepest sleep mode
 	if(vcc <= KillVoltage) {
-		//Stop interrupts
-		cli();
-		//Turn off LED if on
-		setLEDBlinkingState(false);
-		setLEDState(false);
-		//Disable isolator
-		PORTB.OUTCLR = 1 << 2;
-		//Fire relay
-		setRelayState(true, Blink_Voltage, "Killed");
-		//Wait for around 300ms
-		for(uint8_t i = 0; i < 25; i++) {
-			_delay_loop_2(0xffff);
-		}
-		setRelayState(false);
-		//Set sleep mode to power down
-		SLPCTRL.CTRLA = SLPCTRL_SMODE_PDOWN_gc | SLPCTRL_SEN_bm;
-		//Go to sleep
-		sleep_cpu();
-		//Never to be woken again
+		shutdown();
 	}
-	//Make sure that all the other cells are still high enough
-	for(unsigned int i = 0; i < 5; i++) {
+	//Make sure that all the other cells are still within conditions
+	for(uint8_t i = 0; i < 5; i++) {
 		volatile uint16_t adc_val = retreiveFromBuffer(dataBuffer[bufferChoice], static_cast<DataIndexes>(i + static_cast<uint8_t>(DataIndexes::Cell1ADC)));
 		volatile float voltage = vdiv_input(adc_voltage<uint16_t, 1024>(adc_val, 2.5f), 5.6f / 10.0f);
 		snprintf(str_triggerCause, sizeof str_triggerCause / sizeof *str_triggerCause, "Cell%u %-#3.2f", i + 1, static_cast<double>(voltage));
+		//Protect against undervoltage
 		relayAssert(voltage > CutoffVoltage, Blink_Voltage);
+		//Protect against overvoltage
+		relayAssert(voltage < MaximumVoltage, Blink_OverVoltage);
 	}
 	//Make sure that there is no over-current
 	snprintf(str_triggerCause, sizeof str_triggerCause / sizeof *str_triggerCause, "Current %-#4.2f", static_cast<double>(current));
 	relayAssert(current < CutoffCurrent, Blink_Current);
-	//Check the temperature
+	//Make sure there is no over-temperature
 	snprintf(str_triggerCause, sizeof str_triggerCause / sizeof *str_triggerCause, "Temp %-#5.2f", static_cast<double>(temperature));
-	//relayAssert(temperature < CutoffTemperature, Blink_Temperature);
+	relayAssert(temperature < CutoffTemperature, Blink_Temperature);
 	dataBufferChoice = bufferChoice;
 }
 
@@ -409,6 +433,17 @@ void setup() {
 	//Disable prescaler
 	CLKCTRL.MCLKCTRLB = 0;
 
+	//Make sure that the processor didn't reset because of a watchdog condition, and if it did, shutdown the processor
+	if(RSTCTRL.RSTFR & RSTCTRL_WDRF_bm)
+		shutdown();
+
+	//Disable CCP protection for watchdog register
+	CCP = CCP_IOREG_gc;
+	//Setup watchdog timer for 32ms
+	WDT.CTRLA = WDT_PERIOD_32CLK_gc;
+	//Reset watchdog 
+	wdt_reset();
+
 	//Set sleep mode to idle and enable sleep instruction
 	SLPCTRL.CTRLA = SLPCTRL_SMODE_IDLE_gc | SLPCTRL_SEN_bm;
 
@@ -442,7 +477,7 @@ void setup() {
 	constexpr uint32_t TCB0Top = static_cast<uint32_t>((F_CPU / 2) / 200);
 	static_assert(TCB0Top <= 0xffff, "TCB0 top too large");
 	TCB0.CCMP = TCB0Top;
-	//Run a check/data update every 10ms.
+	//Run a check/data update every 5ms.
 	TCB0.CTRLA = TCB_RUNSTDBY_bm | TCB_CLKSEL_CLKDIV2_gc | TCB_ENABLE_bm;
 	TCB0.INTCTRL = TCB_CAPT_bm;
 

@@ -156,9 +156,11 @@
         <avrgcccpp.compiler.optimization.DebugLevel>Default (-g2)</avrgcccpp.compiler.optimization.DebugLevel>
         <avrgcccpp.compiler.warnings.AllWarnings>True</avrgcccpp.compiler.warnings.AllWarnings>
         <avrgcccpp.compiler.miscellaneous.OtherFlags>-std=gnu++14</avrgcccpp.compiler.miscellaneous.OtherFlags>
+        <avrgcccpp.linker.general.UseVprintfLibrary>True</avrgcccpp.linker.general.UseVprintfLibrary>
         <avrgcccpp.linker.libraries.Libraries>
           <ListValues>
             <Value>libm</Value>
+            <Value>libprintf_flt</Value>
           </ListValues>
         </avrgcccpp.linker.libraries.Libraries>
         <avrgcccpp.assembler.general.IncludePaths>
