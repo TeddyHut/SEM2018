@@ -22,6 +22,7 @@ namespace hardwareruntime {
 	extern Sensor<float>    *sensor_temperature_battery [2];
 	extern Sensor<float>    *sensor_speed_motor         [2];
 	extern Sensor<float>    *sensor_speed_wheel;
+	extern Sensor<float>    *sensor_speed_wheel_ms;
 	extern Sensor<bool>     *sensor_op_state;
 	extern ViewerBoard      *viewerboard_driver;
 	extern ValueItem<float> *motor                      [2];

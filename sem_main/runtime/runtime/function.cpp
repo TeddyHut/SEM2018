@@ -10,6 +10,8 @@
 
 #include "function.h"
 
+runtime::nsfunction::Action::Action(uint8_t const id /*= 0*/, uint8_t const priority /*= 0*/) : id(id), priority(priority) {}
+
 runtime::Function::Function(Priority const priority) : priority(priority) {}
 	
 runtime::Function::Output runtime::Function::pullOutput()
@@ -26,12 +28,17 @@ void runtime::Function::function_update(void *const input)
 		auto &&childOut = child->pullOutput();
 		std::for_each(childOut.begin(), childOut.end(), [&](auto &p) { this->addAction(p); });
 	}
-	update();
+	update(input);
 }
 
 runtime::Function::Priority runtime::Function::getPriority() const
 {
 	return priority;
+}
+
+void runtime::Function::setPriority(Priority const priority)
+{
+	this->priority = priority.
 }
 
 void runtime::Function::addAction(munique_ptr<nsfunction::Action> &action)
@@ -58,6 +65,14 @@ std::tuple<bool, mvector<munique_ptr<runtime::nsfunction::Action>>::iterator> ru
 		return std::make_tuple(true, itr);
 	//If the action is new, the bool will be true, otherwise don't allocate a position
 	return std::make_tuple(itr == outputs.end(), outputs.end());
+}
+
+runtime::nsfunction::Action * runtime::Function::findAction(actionid::ActionID const &actionID)
+{
+	auto itr = std::find_if(outputs.begin(), outputs.end(), [actionID](auto const p) { return p->id == actionID; });
+	if(itr != outputs.end())
+		return (*itr).get();
+	return nullptr;
 }
 
 void runtime::Function::addChild(munique_ptr<Function> &child)

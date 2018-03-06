@@ -67,6 +67,9 @@ namespace config {
 
 		constexpr size_t buttonBufferSize = 10;
 	}
+	namespace runtime {
+		constexpr float speedMatchChecker_timeout = 5.0f;
+	}
 	namespace hardware {
 		constexpr float motortogeartickratio = 0.482; //Enoder0.getinterval / encoder2.getinterval
 		constexpr float motorteeth = 12;

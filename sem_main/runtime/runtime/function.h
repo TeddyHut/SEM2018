@@ -15,10 +15,18 @@
 
 namespace runtime {
 
+namespace actionid {
+	enum ActionID : uint8_t {
+		BinarySpeed_Output,
+		SpeedMatchChecker_Ready,
+	};
+}
+
 namespace nsfunction {
 	using Priority = uint8_t;
 	//An action is part of the output from a function
 	struct Action {
+		Action(uint8_t const id = 0, uint8_t const priority = 0);
 		virtual ~Action() = default;
 		uint8_t id;
 		uint8_t priority = 0;
@@ -38,6 +46,8 @@ public:
 	void function_update(void *const input);
 	//Gets the priority of this function
 	Priority getPriority() const;
+	//Sets the priority
+	void setPriority(Priority const priority);
 
 protected:
 	Priority priority;
@@ -52,12 +62,14 @@ protected:
 	munique_ptr<nsfunction::Action> copyAction(action_t const &action);
 	//Perfect place for std::optional, bool will be true if an element should be inserted
 	std::tuple<bool, mvector<munique_ptr<nsfunction::Action>>::iterator> getInsertPosition(nsfunction::Action const &action);
+	//Finds an action based on actionID
+	nsfunction::Action *findAction(actionid::ActionID const &actionID);
 
 	//Adds child functions to this one
 	void addChild(munique_ptr<Function> &child);
 
 	//Called once per cycle
-	virtual void update() = 0;
+	virtual void update(void *const input) = 0;
 };
 
 }
