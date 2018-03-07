@@ -209,7 +209,7 @@ Run::Output Run::Coast::update(Input const &input)
 
 Run::Task * Run::Coast::complete(Input const &input)
 {
-	if(input.vehicleSpeed <= config::run::minimumspeed)
+	if(input.vehicleSpeed <= config::run::speedMatchSpeed)
 		return new (pvPortMalloc(sizeof(SpeedMatch))) SpeedMatch(input);
 	return nullptr;
 }
@@ -280,6 +280,10 @@ Run::Task * Run::SpeedMatch::complete(Input const &input)
 bool Run::SpeedMatch::checkComplete(Input const &input)
 {
 	if(completed) return true;
+	if(input.vehicleSpeed < config::run::minimumspeed) {
+		completed = true;
+		return true;
+	}
 	if(withinError(input.motor0Speed, input.driveSpeed, config::run::errorrange)) {
 		if((input.time - correctEntry) >= config::run::speedmatchcorrecttimeout) {
 			completed = true;
