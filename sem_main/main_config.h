@@ -56,9 +56,9 @@ namespace config {
 		constexpr float ramuptime = 10;
 		constexpr float servoengagetime = 0.1;
 		constexpr float servodisengagetime = 0.1;
-		constexpr float matchramptime = 5;
+		constexpr float matchramptime = 2;
 		constexpr float coastramptime = 10;
-		constexpr float errorrange = 0.05f;
+		constexpr float errorrange = 0.1f;
 
 		constexpr float alertvoltage = 3.2;
 		constexpr float shutdownvoltage = 3.05;

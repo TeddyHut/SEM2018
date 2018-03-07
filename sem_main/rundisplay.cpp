@@ -70,12 +70,14 @@ void Run::DL_Battery::cycle()
 
 void Run::DL_SpeedEnergy::get_text(char str[], Input const &input)
 {
+	if(startTime == -1)
+		startTime = input.time;
 	switch(curcycle) {
 		case Cycle::SpeedEnergy:
 		rpl_snprintf(str, 17, "%#5.2fkmh %#5.2fWh", msToKmh(input.vehicleSpeed), input.totalEnergyUsage);
 		break;
 		case Cycle::Time:
-		rpl_snprintf(str, 17, "Time:      %02u:%02u", static_cast<unsigned int>(input.time) / 60, static_cast<unsigned int>(input.time) % 60);
+		rpl_snprintf(str, 17, "Time:      %02u:%02u", static_cast<unsigned int>(input.time) / 60, static_cast<unsigned int>(input.time - startTime) % 60);
 		break;
 		case Cycle::_size:
 		break;

@@ -93,7 +93,7 @@ void tccEncoder::init()
 	port_config pinconfig;
 	port_get_config_defaults(&pinconfig);
 	pinconfig.direction = PORT_PIN_DIR_INPUT;
-	pinconfig.input_pull = PORT_PIN_PULL_DOWN;
+	pinconfig.input_pull = PORT_PIN_PULL_UP;
 	
 	port_pin_set_config(PIN_PA02, &pinconfig);
 	port_pin_set_config(PIN_PB22, &pinconfig);
@@ -110,7 +110,7 @@ void tccEncoder::init()
 	en0conf.detection_criteria = EXTINT_DETECT_RISING;
 	en0conf.gpio_pin = PIN_PB22A_EIC_EXTINT6;
 	en0conf.gpio_pin_mux = MUX_PB22A_EIC_EXTINT6;
-	en0conf.gpio_pin_pull = EXTINT_PULL_DOWN;
+	en0conf.gpio_pin_pull = EXTINT_PULL_UP;
 	extint_chan_set_config(enc0_extintChannel, &en0conf);
 	//extint_register_callback(extint0Callback, 6, EXTINT_CALLBACK_TYPE_DETECT);
 	//extint_chan_enable_callback(6, EXTINT_CALLBACK_TYPE_DETECT);
@@ -122,7 +122,7 @@ void tccEncoder::init()
 	en0conf.detection_criteria = EXTINT_DETECT_RISING;
 	en0conf.gpio_pin = PIN_PB23A_EIC_EXTINT7;
 	en0conf.gpio_pin_mux = MUX_PB23A_EIC_EXTINT7;
-	en0conf.gpio_pin_pull = EXTINT_PULL_DOWN;
+	en0conf.gpio_pin_pull = EXTINT_PULL_UP;
 	extint_chan_set_config(enc1_extintChannel, &en1conf);
 	//extint_register_callback(extint1Callback, 7, EXTINT_CALLBACK_TYPE_DETECT);
 	//extint_chan_enable_callback(7, EXTINT_CALLBACK_TYPE_DETECT);

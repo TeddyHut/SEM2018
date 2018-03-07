@@ -65,6 +65,7 @@ namespace Run {
 			Time,
 			_size,
 		} curcycle = Cycle::SpeedEnergy;
+		float startTime = -1;
 	};
 
 	//Alternates between ramping statistics (motor current usages, duty cycle, ramping speed)

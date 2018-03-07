@@ -88,11 +88,15 @@ Run::Output Run::Engage::update(Input const &input)
 	Output out;
 	if((servo == Engage::Servo::Servo0) || (servo == Engage::Servo::Both)) {
 		out.servo0Position = f0.currentValue(input.time);
+		out.servo0Power = true;
 		out.output[Output::Element::Servo0Position] = true;
+		out.output[Output::Element::Servo0Power] = true;
 	}
 	if((servo == Engage::Servo::Servo1) || (servo == Engage::Servo::Both)) {
 		out.servo1Position = f1.currentValue(input.time);
+		out.servo1Power = true;
 		out.output[Output::Element::Servo1Position] = true;
+		out.output[Output::Element::Servo1Power] = true;
 	}
 	return out;
 }
@@ -161,11 +165,15 @@ Run::Output Run::Disengage::update(Input const &input)
 	Output out;
 	if((servo == Disengage::Servo::Servo0) || (servo == Disengage::Servo::Both)) {
 		out.servo0Position = f0.currentValue(input.time);
+		out.servo0Power = true;
 		out.output[Output::Element::Servo0Position] = true;
+		out.output[Output::Element::Servo0Power] = true;
 	}
 	if((servo == Disengage::Servo::Servo1) || (servo == Disengage::Servo::Both)) {
 		out.servo1Position = f1.currentValue(input.time);
+		out.servo1Power = true;
 		out.output[Output::Element::Servo1Position] = true;
+		out.output[Output::Element::Servo1Power] = true;
 	}
 	return out;
 }
@@ -173,7 +181,7 @@ Run::Output Run::Disengage::update(Input const &input)
 Run::Task * Run::Disengage::complete(Input const &input)
 {
 	//Also basically the same as engage
-	if(input.time >= f0.get_time_destination())
+	if(input.time >= f0.get_time_destination() + 0.1f)
 		return new (pvPortMalloc(sizeof(Coast))) Coast;
 	return nullptr;
 }
@@ -190,8 +198,13 @@ Run::Task * Run::Disengage::complete(Input const &input)
 
 Run::Output Run::Coast::update(Input const &input)
 {
-	//Don't change anything
-	return {};
+	//Stop servo power
+	Output out;
+	out.servo0Power = false;
+	out.servo1Power = false;
+	out.output[Output::Element::Servo0Power] = true;
+	out.output[Output::Element::Servo1Power] = true;
+	return out;
 }
 
 Run::Task * Run::Coast::complete(Input const &input)
@@ -287,12 +300,21 @@ Run::Output Run::OPCheck::update(Input const &input)
 		buz.stop();
 		vTaskDelay(msToTicks(500));
 	};
+	//If the user just released the button, start a timeout
+	if(input.opState == false && previousOPState == true)
+		errorTime = input.time;
+	if(!input.opState) {
+		if(input.time - errorTime >= 5) {
+			//Stop beeping buzzer
+			keepBeeping = false;
+		}
+	}
 	//Give the semaphore if the buzzer isn't in the queue and the user just released the button
 	if((input.opState == false) && (previousOPState == true) && !buzzerInQueue)
 		xSemaphoreGive(sem_buzzerComplete);
 	if(xSemaphoreTake(sem_buzzerComplete, 0) == pdTRUE) {
-		if(input.opState == false) {
-			//runtime::vbBuzzermanager->registerSequence(buzzerSequence, sem_buzzerComplete);
+		if(input.opState == false && keepBeeping) {
+			runtime::vbBuzzermanager->registerSequence(buzzerSequence, sem_buzzerComplete);
 			buzzerInQueue = true;
 		}
 		else

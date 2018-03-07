@@ -106,8 +106,8 @@ float get_motor_current(MotorIndex const index) {
 	volatile float opamp_outV = adcutil::adc_voltage<uint16_t, 4096>(result, (1.0f / 1.48f) * 3.3f);
 	volatile float opamp_inV = current_opamp_transformation_inV_motor(opamp_outV, 3.3f);
 	volatile float current = acs711_current(opamp_inV, 3.3f);
-	return current;
-	//return 0;
+	//return current;
+	return 0;
 }
 
 void fillInput(Input &input, Output const &prevOutput) {
@@ -164,6 +164,11 @@ void processOutput(Output const &output) {
 		runtime::servo0->setPosition(output.servo0Position);
 	if(output.output[Output::Element::Servo1Position])
 		runtime::servo1->setPosition(output.servo1Position);
+	if(output.output[Output::Element::Servo0Power])
+		port_pin_set_output_level(config::servopower::servo0_power_pin, output.servo0Power);
+	if(output.output[Output::Element::Servo1Power])
+		port_pin_set_output_level(config::servopower::servo1_power_pin, output.servo1Power);
+
 }
 
 void mergeOutput(Output &dest, Output const &src) {
@@ -175,6 +180,10 @@ void mergeOutput(Output &dest, Output const &src) {
 		dest.servo0Position = src.servo0Position;
 	if(src.output[Output::Element::Servo1Position])
 		dest.servo1Position = src.servo1Position;
+	if(src.output[Output::Element::Servo0Power])
+		dest.servo0Power = src.servo0Power;
+	if(src.output[Output::Element::Servo1Power])
+		dest.servo1Power = src.servo1Power;
 	dest.output |= src.output;
 }
 

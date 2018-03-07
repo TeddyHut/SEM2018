@@ -148,6 +148,8 @@ namespace Run {
 		SemaphoreHandle_t sem_buzzerComplete;
 		bool previousOPState = false;
 		bool buzzerInQueue = false;
+		bool keepBeeping = true;
+		float errorTime = 0;
 	};
 	
 	//Checks battery voltage and alerts driver if battery voltage is getting low
