@@ -35,7 +35,7 @@ namespace Run {
 	class DL_Idle_Top : public DisplayLine {
 	public:
 		DL_Idle_Top(int const&countdown);
-		void get_text(char str[], Input const &input);
+		void get_text(char str[], Input const &input) override;
 	private:
 		int const &countdown;
 	};
@@ -43,7 +43,7 @@ namespace Run {
 	//Displays battery statistics
 	class DL_Battery : public DisplayLine, public TimerUpdate {
 	public:
-		void get_text(char str[], Input const &input);
+		void get_text(char str[], Input const &input) override;
 	protected:
 		void cycle() override;
 		enum class Cycle {
@@ -57,7 +57,7 @@ namespace Run {
 	//Displays current vehicle speed and total energy usage. Switches to total time. During normal circumstances always on the top.
 	class DL_SpeedEnergy : public DisplayLine, public TimerUpdate {
 	public:
-		void get_text(char str[], Input const &input);
+		void get_text(char str[], Input const &input) override;
 	protected:
 		void cycle() override;
 		enum class Cycle {
@@ -65,13 +65,12 @@ namespace Run {
 			Time,
 			_size,
 		} curcycle = Cycle::SpeedEnergy;
-		float startTime = -1;
 	};
 
 	//Alternates between ramping statistics (motor current usages, duty cycle, ramping speed)
 	class DL_Ramping : public DisplayLine, public TimerUpdate {
 	public:
-		void get_text(char str[], Input const &input);
+		void get_text(char str[], Input const &input) override;
 	protected:
 		void cycle() override;
 		enum class Cycle {
@@ -85,7 +84,7 @@ namespace Run {
 	//Alternates between coasting statistics (distance traveled, time coasting, battery voltages)
 	class DL_Coasting : public DisplayLine, public TimerUpdate {
 	public:
-		void get_text(char str[], Input const &input);
+		void get_text(char str[], Input const &input) override;
 	protected:
 		void cycle() override;
 		enum class Cycle {
@@ -101,17 +100,20 @@ namespace Run {
 
 	class DL_Finished : public DisplayLine, public TimerUpdate {
 	public:
-		DL_Finished(float const time, float const energyUsage);
-		void get_text(char str[], Input const &input);
+		DL_Finished(float const time, float const energy, float const distance);
+		void get_text(char str[], Input const &input) override;
 	protected:
 		void cycle() override;
 		enum class Cycle {
-			EnergyUsage = 0,
+			Finished = 0,
+			Energy,
 			Time,
+			Distance,
 			_size,
-		} curCycle = Cycle::EnergyUsage;
+		} curCycle = Cycle::Finished;
 		float time = 0;
-		float energyUsage = 0;
+		float energy = 0;
+		float distance = 0;
 	};
 
 	struct Display {

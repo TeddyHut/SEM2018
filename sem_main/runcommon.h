@@ -85,6 +85,12 @@ namespace Run {
 		float distance = 0;
 		//The state of the operator presence button
 		bool opState = false;
+		//Whether the vehicle has started or not
+		bool started = false;
+		//Distance covered since starting
+		float startDistance = 0;
+		//Time since starting
+		float startTime = 0;
 		//TO ADD:
 		//Accelerometer data, information about I2C voltage/current sensors
 	};
@@ -98,6 +104,7 @@ namespace Run {
 				Servo1Position,
 				Servo0Power,
 				Servo1Power,
+				Started,
 				_size,
 			};
 		};
@@ -107,6 +114,7 @@ namespace Run {
 		float servo1Position;
 		bool servo0Power;
 		bool servo1Power;
+		bool started = false;
 		std::bitset<Element::_size> output;
 	};
 }

@@ -138,6 +138,18 @@ namespace Run {
 		ValueMatch::Linear<float, float> f;
 	};
 
+	class Finished : public Task {
+	public:
+		Finished(float const time, float const energy, float const distance);
+		Output update(Input const &input) override;
+		Task *complete(Input const &input) override;
+		void displayUpdate(Display &disp) override;
+	private:
+		float time = 0;
+		float energy = 0;
+		float distance = 0;
+	};
+
 	//---Non funcitonality tasks---
 	class OPCheck : public Task {
 	public:
@@ -150,8 +162,9 @@ namespace Run {
 		bool buzzerInQueue = false;
 		bool keepBeeping = true;
 		float errorTime = 0;
+		bool finished = false;
+		
 	};
-	
 	//Checks battery voltage and alerts driver if battery voltage is getting low
 	class BatteryCheck : public Task {
 		Output update(Input const &input) override;

@@ -112,12 +112,26 @@ float get_motor_current(MotorIndex const index) {
 
 void fillInput(Input &input, Output const &prevOutput) {
 	static ButtonBuffer opBuffer;
+
+	//Determine whether device started
+	if(prevOutput.output[Output::Element::Started])
+		input.started = prevOutput.started;
+
 	//Get difference in time since last cycle
 	float timeDifference = (rtc_count_get_count(&rtc_instance) / 1024.0f) - input.time;
 	input.time += timeDifference;
 
 	//Time based calculations
-	input.distance += input.vehicleSpeed * timeDifference;
+	float distanceDifference = input.vehicleSpeed * timeDifference;
+	input.distance += distanceDifference;
+
+	//If has started, add calculations to started values
+	if(input.started) {
+		input.startTime += timeDifference;
+		input.startDistance += distanceDifference;
+	}
+
+	//If has started, update 
 	//Energy in W/s (joules) / 3600 to get W/h
 	input.totalEnergyUsage += (((input.bms0data.current * input.bms0data.voltage) + (input.bms1data.current * input.bms1data.voltage)) * timeDifference) / 3600.0f;
 	//This for when only one BMS is working
@@ -184,6 +198,8 @@ void mergeOutput(Output &dest, Output const &src) {
 		dest.servo0Power = src.servo0Power;
 	if(src.output[Output::Element::Servo1Power])
 		dest.servo1Power = src.servo1Power;
+	if(src.output[Output::Element::Started])
+		dest.started = src.started;
 	dest.output |= src.output;
 }
 
@@ -197,40 +213,47 @@ void runmanagement::run()
 	Output output;
 	Task *currentTask = new (pvPortMalloc(sizeof(Idle))) Idle;
 	Task *opCheck = new (pvPortMalloc(sizeof(OPCheck))) OPCheck;
-	Task *batteryCheck = new (pvPortMalloc(sizeof(BatteryCheck))) BatteryCheck;
-	Task *motorCheck = new (pvPortMalloc(sizeof(MotorCheck))) MotorCheck;
+	//Task *batteryCheck = new (pvPortMalloc(sizeof(BatteryCheck))) BatteryCheck;
+	//Task *motorCheck = new (pvPortMalloc(sizeof(MotorCheck))) MotorCheck;
 
 #if (ENABLE_ADPCONTROL == 1)
 	ADPControl adpcontrol;
 	adpcontrol.init();
 #endif
-
+	auto allocateNewTask = [&](Task *const returnTask) {
+		currentTask->~Task();
+		vPortFree(currentTask);
+		currentTask = returnTask;
+		currentTask->displayUpdate(disp);
+	};
 	currentTask->displayUpdate(disp);
 	TickType_t previousWakeTime = xTaskGetTickCount();
 	TickType_t displayUpdateTime = xTaskGetTickCount();
 	while(true) {
 		fillInput(input, output);
+		//Reset change flags
+		output.output.reset();
+
 		input.currentID = currentTask->id;
 		mergeOutput(output, currentTask->update(input));
 		Task *returnTask = currentTask->complete(input);
 		//Current task should be changed
 		if(returnTask != nullptr) {
-			currentTask->~Task();
-			vPortFree(currentTask);
-			currentTask = returnTask;
-			currentTask->displayUpdate(disp);
+			allocateNewTask(returnTask);
 		}
 		//Perform overriding checks
-		for(auto &&element : {opCheck, batteryCheck, motorCheck}) {
+		for(auto &&element : {opCheck}) {
 			mergeOutput(output, element->update(input));
+			auto returnTask = element->complete(input);
+			if(returnTask != nullptr) {
+				allocateNewTask(returnTask);
+			}
 			element->displayUpdate(disp);
 		}
 #if (ENABLE_MANUALSERIAL == 1)
 		if(currentTask->id != TaskIdentity::Idle)
 #endif	
 		processOutput(output);
-		//Reset change flags
-		output.output.reset();
 		//Print display
 		if(xTaskGetTickCount() - displayUpdateTime >= config::run::displayrefreshrate) {
 			displayUpdateTime = xTaskGetTickCount();

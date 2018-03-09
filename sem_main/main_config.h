@@ -29,7 +29,7 @@
 #endif
 
 #define ENABLE_MANUALSERIAL 0
-#define ENABLE_ADPCONTROL 1
+#define ENABLE_ADPCONTROL 0
 
 constexpr TickType_t msToTicks(float const ms) {
 	return (ms / 1000.0f) * configTICK_RATE_HZ;
@@ -57,6 +57,7 @@ namespace config {
 		constexpr float ramuptime = 10;
 		constexpr float servoengagetime = 0.1;
 		constexpr float servodisengagetime = 0.1;
+		constexpr float stoptimeout = 5;
 		constexpr float matchramptime = 2;
 		constexpr float coastramptime = 10;
 		constexpr float errorrange = 0.15f;
@@ -115,7 +116,7 @@ namespace config {
 		constexpr float period = (1.0f / 100000.0f);
 	}
 	namespace buzzermanager {
-		constexpr size_t sequenceQueueSize = 2;
+		constexpr size_t sequenceQueueSize = 4;
 	}
 	namespace ledmanager {
 		constexpr size_t sequenceSqueueSize = 2;

@@ -70,14 +70,12 @@ void Run::DL_Battery::cycle()
 
 void Run::DL_SpeedEnergy::get_text(char str[], Input const &input)
 {
-	if(startTime == -1)
-		startTime = input.time;
 	switch(curcycle) {
 		case Cycle::SpeedEnergy:
 		rpl_snprintf(str, 17, "%#5.2fkmh %#5.2fWh", msToKmh(input.vehicleSpeed), input.totalEnergyUsage);
 		break;
 		case Cycle::Time:
-		rpl_snprintf(str, 17, "Time:      %02u:%02u", static_cast<unsigned int>(input.time) / 60, static_cast<unsigned int>(input.time - startTime) % 60);
+		rpl_snprintf(str, 17, "Time:      %02u:%02u", static_cast<unsigned int>(input.startTime) / 60, static_cast<unsigned int>(input.startTime) % 60);
 		break;
 		case Cycle::_size:
 		break;
@@ -125,7 +123,7 @@ void Run::DL_Coasting::get_text(char str[], Input const &input)
 		rpl_snprintf(str, 17, "Coasting:  %2.2u:%2.2u", static_cast<unsigned int>(input.time - starttime) / 60, static_cast<unsigned int>(input.time - starttime) % 60);
 		break;
 		case Cycle::Distance:
-		rpl_snprintf(str, 17, "Distance: %#6.3f", input.distance);
+		rpl_snprintf(str, 17, "Distance: %#6.3f", input.startDistance);
 		break;
 		case Cycle::_size:
 		break;
@@ -135,4 +133,31 @@ void Run::DL_Coasting::get_text(char str[], Input const &input)
 void Run::DL_Coasting::cycle()
 {
 	curcycle = enumCycle(curcycle);
+}
+
+ Run::DL_Finished::DL_Finished(float const time, float const energy, float const distance) : TimerUpdate(), time(time), energy(energy), distance(distance) {}
+
+void Run::DL_Finished::get_text(char str[], Input const &input)
+{
+	switch(curCycle) {
+	case Cycle::Finished:
+		rpl_snprintf(str, 17, "    Finished    ");
+		break;
+	case Cycle::Time:
+		rpl_snprintf(str, 17, "Time:      %02u:%02u", static_cast<unsigned int>(time) / 60, static_cast<unsigned int>(time) % 60);
+		break;
+	case Cycle::Energy:
+		rpl_snprintf(str, 17, "Energy:  %#5.2fWh", energy);
+		break;
+	case Cycle::Distance:
+		rpl_snprintf(str, 17, "Distance: %#6.3f", distance);
+		break;
+	case Cycle::_size:
+		break;
+	}
+}
+
+void Run::DL_Finished::cycle()
+{
+	curCycle = enumCycle(curCycle);
 }

@@ -21,6 +21,21 @@ constexpr bool withinError(T const value, T const target, T const error) {
 	return (value < (target + (target * error))) && (value > (target - (target * error)));
 }
 
+void setoutputDefaults(Output &out) {
+	out.motor0DutyCycle = 0;
+	out.motor1DutyCycle = 0;
+	out.servo0Position = config::run::servo0restposition;
+	out.servo1Position = config::run::servo1restposition;
+	out.servo0Power = true;
+	out.servo1Power = true;
+	out.output[Output::Element::Motor0DutyCycle] = true;
+	out.output[Output::Element::Motor1DutyCycle] = true;
+	out.output[Output::Element::Servo0Position] = true;
+	out.output[Output::Element::Servo1Position] = true;
+	out.output[Output::Element::Servo0Power] = true;
+	out.output[Output::Element::Servo1Power] = true;
+}
+
 void Run::Task::displayUpdate(Display &disp)
 {
 }
@@ -40,8 +55,13 @@ Run::Output Run::Idle::update(Input const &input)
 	out.servo1Position = config::run::servo1restposition;
 	out.motor0DutyCycle = 0;
 	out.motor1DutyCycle = 0;
-	//Set all output flags
-	out.output.set();
+	out.started = false;
+	//Set output flags
+	out.output[Output::Element::Motor0DutyCycle] = true;
+	out.output[Output::Element::Motor1DutyCycle] = true;
+	out.output[Output::Element::Servo0Position] = true;
+	out.output[Output::Element::Servo1Position] = true;
+	out.output[Output::Element::Started] = true;
 	return out;
 }
 
@@ -138,6 +158,8 @@ Run::Output Run::Startup::update(Input const &input)
 	}
 	out.output.set(Output::Element::Motor0DutyCycle);
 	out.output.set(Output::Element::Motor1DutyCycle);
+	out.started = true;
+	out.output.set(Output::Element::Started);
 	return out;
 }
 
@@ -298,45 +320,30 @@ bool Run::SpeedMatch::checkComplete(Input const &input)
 Run::Output Run::OPCheck::update(Input const &input)
 {
 	Output out;
-	auto buzzerSequence = [](Buzzer &buz) {
-		buz.start();
-		vTaskDelay(msToTicks(500));
-		buz.stop();
-		vTaskDelay(msToTicks(500));
-	};
-	//If the user just released the button, start a timeout
-	if(input.opState == false && previousOPState == true)
-		errorTime = input.time;
-	if(!input.opState) {
-		if(input.time - errorTime >= 5) {
-			//Stop beeping buzzer
-			keepBeeping = false;
+	if(input.started && !finished) {
+		auto buzzerSequence = [](Buzzer &buz) {
+			buz.start();
+			vTaskDelay(msToTicks(500));
+			buz.stop();
+			vTaskDelay(msToTicks(500));
+		};
+		//If the user just released the button, start a timeout
+		if(input.opState == false && previousOPState == true)
+			errorTime = input.time;
+		//Give the semaphore if the buzzer isn't in the queue and the user just released the button
+		if((input.opState == false) && (previousOPState == true) && !buzzerInQueue)
+			xSemaphoreGive(sem_buzzerComplete);
+		if(xSemaphoreTake(sem_buzzerComplete, 0) == pdTRUE) {
+			if(input.opState == false) {
+				runtime::vbBuzzermanager->registerSequence(buzzerSequence, sem_buzzerComplete);
+				buzzerInQueue = true;
+			}
+			else
+				buzzerInQueue = false;
 		}
-	}
-	//Give the semaphore if the buzzer isn't in the queue and the user just released the button
-	if((input.opState == false) && (previousOPState == true) && !buzzerInQueue)
-		xSemaphoreGive(sem_buzzerComplete);
-	if(xSemaphoreTake(sem_buzzerComplete, 0) == pdTRUE) {
-		if(input.opState == false && keepBeeping) {
-			runtime::vbBuzzermanager->registerSequence(buzzerSequence, sem_buzzerComplete);
-			buzzerInQueue = true;
+		if(input.opState == false) {
+			setoutputDefaults(out);
 		}
-		else
-			buzzerInQueue = false;
-	}
-	if(input.opState == false) {
-		out.motor0DutyCycle = 0;
-		out.motor1DutyCycle = 0;
-		out.servo0Position = config::run::servo0restposition;
-		out.servo1Position = config::run::servo1restposition;
-		out.servo0Power = true;
-		out.servo1Power = true;
-		out.output[Output::Element::Motor0DutyCycle] = true;
-		out.output[Output::Element::Motor1DutyCycle] = true;
-		out.output[Output::Element::Servo0Position] = true;
-		out.output[Output::Element::Servo1Position] = true;
-		out.output[Output::Element::Servo0Power] = true;
-		out.output[Output::Element::Servo1Power] = true;
 	}
 	previousOPState = input.opState;
 	return out;
@@ -344,6 +351,10 @@ Run::Output Run::OPCheck::update(Input const &input)
 
 Run::Task * Run::OPCheck::complete(Input const &input)
 {
+	if((!input.opState) && ((input.time) - errorTime >= config::run::stoptimeout) && input.started && !finished) {
+		finished = true;
+		return new(pvPortMalloc(sizeof(Finished))) Finished(input.startTime, input.totalEnergyUsage, input.startDistance);
+	}
 	return nullptr;
 }
 
@@ -373,7 +384,7 @@ Run::Output Run::BatteryCheck::update(Input const &input)
 	//		}
 	//	});
 	//}
-	//return out;
+	return out;
 }
 
 Run::Task * Run::BatteryCheck::complete(Input const &input)
@@ -416,4 +427,24 @@ void Run::init()
 {
 	tcc_set_compare_value(&tccEncoder::instance, TCC_MATCH_CAPTURE_CHANNEL_0, 0x0aff);
 	tcc_register_callback(&tccEncoder::instance, callback_tcc2_compare_speedmatch_update, TCC_CALLBACK_CHANNEL_0);
+}
+
+ Run::Finished::Finished(float const time, float const energy, float const distance) : time(time), energy(energy), distance(distance) {}
+
+Run::Output Run::Finished::update(Input const &input)
+{
+	Output out;
+	setoutputDefaults(out);
+	return out;
+}
+
+Run::Task * Run::Finished::complete(Input const &input)
+{
+	return nullptr;
+}
+
+void Run::Finished::displayUpdate(Display &disp)
+{
+	disp.topline.reset(new (pvPortMalloc(sizeof(DL_Finished))) DL_Finished(time, energy, distance));
+	disp.bottomline.reset(new (pvPortMalloc(sizeof(DL_Battery))) DL_Battery);
 }
