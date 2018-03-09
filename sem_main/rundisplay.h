@@ -89,7 +89,7 @@ namespace Run {
 	protected:
 		void cycle() override;
 		enum class Cycle {
-			Distance,
+			Distance = 0,
 			CoastTime,
 			BatteryVoltage,
 			_size,
@@ -97,6 +97,21 @@ namespace Run {
 		//Used to workout coasting time
 		bool firstGetText = true;
 		float starttime;
+	};
+
+	class DL_Finished : public DisplayLine, public TimerUpdate {
+	public:
+		DL_Finished(float const time, float const energyUsage);
+		void get_text(char str[], Input const &input);
+	protected:
+		void cycle() override;
+		enum class Cycle {
+			EnergyUsage = 0,
+			Time,
+			_size,
+		} curCycle = Cycle::EnergyUsage;
+		float time = 0;
+		float energyUsage = 0;
 	};
 
 	struct Display {

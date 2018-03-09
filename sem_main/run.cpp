@@ -327,8 +327,16 @@ Run::Output Run::OPCheck::update(Input const &input)
 	if(input.opState == false) {
 		out.motor0DutyCycle = 0;
 		out.motor1DutyCycle = 0;
+		out.servo0Position = config::run::servo0restposition;
+		out.servo1Position = config::run::servo1restposition;
+		out.servo0Power = true;
+		out.servo1Power = true;
 		out.output[Output::Element::Motor0DutyCycle] = true;
 		out.output[Output::Element::Motor1DutyCycle] = true;
+		out.output[Output::Element::Servo0Position] = true;
+		out.output[Output::Element::Servo1Position] = true;
+		out.output[Output::Element::Servo0Power] = true;
+		out.output[Output::Element::Servo1Power] = true;
 	}
 	previousOPState = input.opState;
 	return out;
@@ -348,24 +356,24 @@ Run::Task * Run::OPCheck::complete(Input const &input)
 Run::Output Run::BatteryCheck::update(Input const &input)
 {
 	Output out;
-	if(input.bms0data.current > config::run::alertbmscurrent) {
-		out.motor0DutyCycle = 0;
-		out.motor1DutyCycle = 0;
-		//Turn on the BMS led
-		runtime::bms0->setLEDState(true);
-	}
-	if(input.bms0data.current > config::run::alertbmscurrent) {
-		//Alert the user
-		runtime::vbBuzzermanager->registerSequence([](Buzzer &buz) {
-			for(unsigned int i = 0; i < 6; i++) {
-				buz.start();
-				vTaskDelay(msToTicks(50));
-				buz.stop();
-				vTaskDelay(msToTicks(50));
-			}
-		});
-	}
-	return out;
+	//if(input.bms0data.current > config::run::alertbmscurrent) {
+	//	out.motor0DutyCycle = 0;
+	//	out.motor1DutyCycle = 0;
+	//	//Turn on the BMS led
+	//	runtime::bms0->setLEDState(true);
+	//}
+	//if(input.bms0data.current > config::run::alertbmscurrent) {
+	//	//Alert the user
+	//	runtime::vbBuzzermanager->registerSequence([](Buzzer &buz) {
+	//		for(unsigned int i = 0; i < 6; i++) {
+	//			buz.start();
+	//			vTaskDelay(msToTicks(50));
+	//			buz.stop();
+	//			vTaskDelay(msToTicks(50));
+	//		}
+	//	});
+	//}
+	//return out;
 }
 
 Run::Task * Run::BatteryCheck::complete(Input const &input)
