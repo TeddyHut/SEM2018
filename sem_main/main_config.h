@@ -51,14 +51,14 @@ namespace config {
 		constexpr float servo1engagedposition = 118;
 
 		constexpr float minimumspeed = kmhToMs(22);
-		constexpr float speedMatchSpeed = kmhToMs(25);
-		constexpr float maximumspeed = kmhToMs(28);
+		constexpr float speedMatchSpeed = kmhToMs(24.5);
+		constexpr float maximumspeed = kmhToMs(27);
 
 		constexpr float ramuptime = 10;
 		constexpr float servoengagetime = 0.1;
 		constexpr float servodisengagetime = 0.1;
 		constexpr float stoptimeout = 5;
-		constexpr float matchramptime = 2;
+		constexpr float matchramptime = 1.5;
 		constexpr float coastramptime = 10;
 		constexpr float errorrange = 0.15f;
 

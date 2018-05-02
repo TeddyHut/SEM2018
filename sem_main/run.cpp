@@ -160,6 +160,15 @@ Run::Output Run::Startup::update(Input const &input)
 	out.output.set(Output::Element::Motor1DutyCycle);
 	out.started = true;
 	out.output.set(Output::Element::Started);
+	out.servo0Position = config::run::servo0engagedposition;
+	out.servo1Position = config::run::servo1engagedposition;
+	out.servo0Power = true;
+	out.servo1Power = true;
+	out.output.set(Output::Element::Motor0DutyCycle);
+	out.output.set(Output::Element::Servo0Position);
+	out.output.set(Output::Element::Motor1DutyCycle);
+	out.output.set(Output::Element::Servo1Position);
+	
 	return out;
 }
 

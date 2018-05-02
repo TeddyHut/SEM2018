@@ -50,6 +50,7 @@ namespace Run {
 			Voltage = 0,
 			Current,
 			AvgCellVoltage,
+			Temperature,
 			_size,
 		} curcycle = Cycle::Voltage;
 	};

@@ -45,17 +45,17 @@ namespace {
 	using RecvBuffer_t = std::array<uint8_t, bufsize>;
 	
 	float milliVoltsToDegreesC(float const m) {
+		//Taken from temperature sensor datasheet
 		float result = 2230.8 - m;
 		result *= (4 * 0.00433);
-		result += std::pow(-13.528, 2);
+		result += std::pow(-13.582, 2);
 		result = 13.582 - sqrt(result);
 		result /= (2 * -0.00433);
 		return result + 30;
 	}
 
-	//Gets the temperature from the result of the temperature conversion
 	float calculateTemperature(uint16_t const value) {
-		return milliVoltsToDegreesC(vdiv_input(adc_voltage<uint16_t, 1024>(value, 1.1f), vdiv_factor(5.1f, 7.5f)) * 1000.0f);
+		return milliVoltsToDegreesC(vdiv_input(adc_voltage<uint16_t, 1024>(value, 2.5f), vdiv_factor(5.1f, 7.5f)) * 1000.0f);
 	}
 
 	constexpr float current_opamp_transformation_outV_bms(float const inV, float const vcc) {
