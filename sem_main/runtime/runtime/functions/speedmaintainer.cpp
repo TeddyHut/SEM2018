@@ -16,7 +16,7 @@ runtime::Action_BinarySpeedOutput::Action_BinarySpeedOutput() : Action(actionid:
 runtime::BinarySpeed::BinarySpeed(Priority const priority) : Function(priority) {}
 
 void runtime::BinarySpeed::setSpeed(float const speed)
-{i+-+-------------------
+{
 	this->speed = speed;
 }
 
