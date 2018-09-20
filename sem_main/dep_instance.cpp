@@ -11,24 +11,23 @@
 BMS           *runtime::bms0;
 BMS           *runtime::bms1;
 Motor         *runtime::motor0;
-Motor         *runtime::motor1;
 Encoder       *runtime::encoder0;
-Encoder       *runtime::encoder1;
-Encoder       *runtime::encoder2;
-ServoF        *runtime::servo0;
-ServoF        *runtime::servo1;
-EMC1701       *runtime::emc1701_servo0;
-EMC1701       *runtime::emc1701_servo1;
-EMC1701       *runtime::emc1701_5v;
-EMC1701       *runtime::emc1701_3v3;
-Sensor<float> *runtime::sensor_servo0_current;
-Sensor<float> *runtime::sensor_servo1_current;
-Sensor<float> *runtime::sensor_servo0_voltage;
-Sensor<float> *runtime::sensor_servo1_voltage;
-Sensor<float> *runtime::sensor_3v3_current;
-Sensor<float> *runtime::sensor_5v_current;
-Sensor<float> *runtime::sensor_3v3_voltage;
-Sensor<float> *runtime::sensor_5v_voltage;
+//Encoder       *runtime::encoder1;
+//Encoder       *runtime::encoder2;
+//ServoF        *runtime::servo0;
+//ServoF        *runtime::servo1;
+//EMC1701       *runtime::emc1701_servo0;
+//EMC1701       *runtime::emc1701_servo1;
+//EMC1701       *runtime::emc1701_5v;
+//EMC1701       *runtime::emc1701_3v3;
+//Sensor<float> *runtime::sensor_servo0_current;
+//Sensor<float> *runtime::sensor_servo1_current;
+//Sensor<float> *runtime::sensor_servo0_voltage;
+//Sensor<float> *runtime::sensor_servo1_voltage;
+//Sensor<float> *runtime::sensor_3v3_current;
+//Sensor<float> *runtime::sensor_5v_current;
+//Sensor<float> *runtime::sensor_3v3_voltage;
+//Sensor<float> *runtime::sensor_5v_voltage;
 
 namespace runtime {
 	void emc1701_config();
@@ -41,24 +40,24 @@ void runtime::dep_init()
 	bms0                  = new (pvPortMalloc(sizeof(BMS                 ))) BMS;
 	bms1                  = new (pvPortMalloc(sizeof(BMS                 ))) BMS;
 	motor0                = new (pvPortMalloc(sizeof(TCMotor0            ))) TCMotor0;
-	motor1                = new (pvPortMalloc(sizeof(TCMotor1            ))) TCMotor1;
+	//motor1                = new (pvPortMalloc(sizeof(TCMotor1            ))) TCMotor1;
 	encoder0              = new (pvPortMalloc(sizeof(Encoder0            ))) Encoder0(tccEncoder::motor_speedConvert);
-	encoder1              = new (pvPortMalloc(sizeof(Encoder1            ))) Encoder1(tccEncoder::motor_speedConvert);
-	encoder2              = new (pvPortMalloc(sizeof(Encoder2            ))) Encoder2(tccEncoder::motor_driveTrainConvert);
-	servo0                = new (pvPortMalloc(sizeof(TCCServo0           ))) TCCServo0;
-	servo1                = new (pvPortMalloc(sizeof(TCCServo1           ))) TCCServo1;
-	emc1701_servo0        = new (pvPortMalloc(sizeof(EMC1701             ))) EMC1701;
-	emc1701_servo1        = new (pvPortMalloc(sizeof(EMC1701             ))) EMC1701;
-	emc1701_5v            = new (pvPortMalloc(sizeof(EMC1701             ))) EMC1701;
-	emc1701_3v3           = new (pvPortMalloc(sizeof(EMC1701             ))) EMC1701;
-	sensor_servo0_current = new (pvPortMalloc(sizeof(EMC1701CurrentSensor))) EMC1701CurrentSensor;
-	sensor_servo1_current = new (pvPortMalloc(sizeof(EMC1701CurrentSensor))) EMC1701CurrentSensor;
-	sensor_servo0_voltage = new (pvPortMalloc(sizeof(EMC1701VoltageSensor))) EMC1701VoltageSensor;
-	sensor_servo1_voltage = new (pvPortMalloc(sizeof(EMC1701VoltageSensor))) EMC1701VoltageSensor;
-	sensor_3v3_current    = new (pvPortMalloc(sizeof(EMC1701CurrentSensor))) EMC1701CurrentSensor;
-	sensor_5v_current     = new (pvPortMalloc(sizeof(EMC1701CurrentSensor))) EMC1701CurrentSensor;
-	sensor_3v3_voltage    = new (pvPortMalloc(sizeof(EMC1701VoltageSensor))) EMC1701VoltageSensor;
-	sensor_5v_voltage     = new (pvPortMalloc(sizeof(EMC1701VoltageSensor))) EMC1701VoltageSensor;
+	//encoder1              = new (pvPortMalloc(sizeof(Encoder1            ))) Encoder1(tccEncoder::motor_speedConvert);
+	//encoder2              = new (pvPortMalloc(sizeof(Encoder2            ))) Encoder2(tccEncoder::motor_driveTrainConvert);
+	//servo0                = new (pvPortMalloc(sizeof(TCCServo0           ))) TCCServo0;
+	//servo1                = new (pvPortMalloc(sizeof(TCCServo1           ))) TCCServo1;
+	//emc1701_servo0        = new (pvPortMalloc(sizeof(EMC1701             ))) EMC1701;
+	//emc1701_servo1        = new (pvPortMalloc(sizeof(EMC1701             ))) EMC1701;
+	//emc1701_5v            = new (pvPortMalloc(sizeof(EMC1701             ))) EMC1701;
+	//emc1701_3v3           = new (pvPortMalloc(sizeof(EMC1701             ))) EMC1701;
+	//sensor_servo0_current = new (pvPortMalloc(sizeof(EMC1701CurrentSensor))) EMC1701CurrentSensor;
+	//sensor_servo1_current = new (pvPortMalloc(sizeof(EMC1701CurrentSensor))) EMC1701CurrentSensor;
+	//sensor_servo0_voltage = new (pvPortMalloc(sizeof(EMC1701VoltageSensor))) EMC1701VoltageSensor;
+	//sensor_servo1_voltage = new (pvPortMalloc(sizeof(EMC1701VoltageSensor))) EMC1701VoltageSensor;
+	//sensor_3v3_current    = new (pvPortMalloc(sizeof(EMC1701CurrentSensor))) EMC1701CurrentSensor;
+	//sensor_5v_current     = new (pvPortMalloc(sizeof(EMC1701CurrentSensor))) EMC1701CurrentSensor;
+	//sensor_3v3_voltage    = new (pvPortMalloc(sizeof(EMC1701VoltageSensor))) EMC1701VoltageSensor;
+	//sensor_5v_voltage     = new (pvPortMalloc(sizeof(EMC1701VoltageSensor))) EMC1701VoltageSensor;
 
 	bms0                 ->init(runtime::mainspi, config::bms::bms0_ss_pin);
 	bms1                 ->init(runtime::mainspi, config::bms::bms1_ss_pin);
@@ -79,6 +78,7 @@ void runtime::dep_init()
 	//emc1701_config();
 }
 
+/*
 void runtime::emc1701_config()
 {
 	using namespace emc1701;
@@ -123,3 +123,4 @@ void runtime::emc1701_config()
 		emc->setConfig(conf);
 	}
 }
+*/

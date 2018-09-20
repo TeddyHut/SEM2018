@@ -13,7 +13,7 @@ void stopmovement()
 {
 	//Motors
 	runtime::motor0->setDutyCycle(0);
-	runtime::motor1->setDutyCycle(0);
+	//runtime::motor1->setDutyCycle(0);
 	//Servos
 	port_pin_set_output_level(config::servopower::servo0_power_pin, false);
 	port_pin_set_output_level(config::servopower::servo1_power_pin, false);
@@ -22,11 +22,11 @@ void stopmovement()
 void debugbreak()
 {
 	stopmovement();
-	if(runtime::buzzer != nullptr)
-		runtime::buzzer->stop();
-	if(runtime::redLED != nullptr)
-		runtime::redLED->setLEDState(true);
-	if(runtime::greenLED != nullptr)
-		runtime::greenLED->setLEDState(false);
+	//if(runtime::buzzer != nullptr)
+	//	runtime::buzzer->stop();
+	//if(runtime::redLED != nullptr)
+	//	runtime::redLED->setLEDState(true);
+	//if(runtime::greenLED != nullptr)
+	//	runtime::greenLED->setLEDState(false);
 	__asm__("BKPT");
 }

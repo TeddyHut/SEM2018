@@ -37,26 +37,23 @@ constexpr tc_clock_prescaler tccPrescaler_to_tcPrescaler(tcc_clock_prescaler con
 class Motor {
 public:
 	virtual void setDutyCycle(float const dutyCycle) = 0;
+	virtual void setPeriod(float const period) = 0;
 };
 
 class TCMotor : public Motor {
-	using Conf = TCCServoStaticConfig<float, uint16_t, 0xffff>::Result; 
+	using TimerTemplate = TCCServoStaticConfig<float, uint16_t, 0xffff>;
+	using Conf = TimerTemplate::Result;
 public:
 	 void setDutyCycle(float const dutyCycle) override;
+	 void setPeriod(float const period) override;
 
-	 TCMotor(Conf const conf, tc_compare_capture_channel const channel);
 protected:
-	Conf const conf;
+	float dutyCycle = 0;
+	float period = 0;
 	tc_module instance;
-	tc_compare_capture_channel const channel;
 };
 
 class TCMotor0 : public TCMotor {
 public:
 	TCMotor0();
-};
-
-class TCMotor1 : public TCMotor {
-public:
-	TCMotor1();
 };

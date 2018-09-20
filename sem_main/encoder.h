@@ -28,6 +28,7 @@ class Encoder {
 public:
 	virtual float getSpeed() const = 0;
 	virtual float getAverageInterval() const = 0;
+	virtual size_t getSampleTotal() const = 0;
 };
 
 template <typename T, size_t s = config::encoder::bufferSize>
@@ -35,14 +36,23 @@ class Ticker {
 public:
 	void tick(T const t);
 	T getAverageInterval() const;
+	size_t getTicks() const;
 	Ticker();
 private:
 	using buf_t = std::array<T, s>;
 	buf_t buffer;
 	//For seme reason iterator wouldn't work in the std:: functions. TODO: Try again with std functions, might have just messed up some syntax or something
 	size_t itr = 0;
+	//Total number of times it has been ticked
+	size_t ticks = 0;
 	bool filled = false;
 };
+
+template <typename T, size_t s /*= config::encoder::bufferSize*/>
+size_t Ticker<T, s>::getTicks() const
+{
+	return ticks;
+}
 
 template <typename T, size_t s /*= config::encoder::bufferSize*/>
 Ticker<T, s>::Ticker()
@@ -71,6 +81,7 @@ T Ticker<T, s>::getAverageInterval() const
 template <typename T, size_t s /*= config::encoder::*/>
 void Ticker<T, s>::tick(T const t)
 {
+	ticks++;
 	buffer[itr++] = t;
 	if(itr == buffer.size()) {
 		filled = true;
@@ -86,6 +97,7 @@ public:
 	static void compare(counter_t const value);
 	float getSpeed() const override;
 	float getAverageInterval() const override;
+	size_t getSampleTotal() const override;
 	static counter_t getCounterValue();
 	TimerEncoder(convert_t const convertfn);
 protected:
@@ -96,7 +108,13 @@ protected:
 	counter_t start = 0;
 };
 
-//Should probably put this in a specialised subclass, but they all share the same timer so whatever
+template <size_t n, typename counter_t /*= unsigned int*/>
+size_t TimerEncoder<n, counter_t>::getSampleTotal() const 
+{
+	return ticker.getTicks();
+}
+
+//Should probably put this in a specialized subclass, but they all share the same timer so whatever
 template <size_t n, typename counter_t /*= unsigned int*/>
 counter_t TimerEncoder<n, counter_t>::getCounterValue()
 {

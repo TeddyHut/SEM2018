@@ -27,16 +27,6 @@ constexpr float current_opamp_transformation_inV_motor(float const outV, float c
 	return (outV + (vcc * (5.1 / (2 * 1 + 10)))) / ((5.1 * (2 * (1 + 5.1) + 10)) / ((1 + 5.1) * (2 * 1 + 10)));
 }
 
-constexpr float driveIntervalToMs(float const interval) {
-	if(interval <= 0)
-		return 0;
-	float const sec_interval = (interval / config::motor::clockFrequency);
-	//Speed = distance / time
-	//Distance = circumference / 8
-	//Time = sec_interval
-	return ((config::hardware::wheelradius * 2 * M_PI) / 8) / sec_interval;
-}
-
 //Prevents noise/button hardware error on the OP presence button
 class ButtonBuffer {
 public:
@@ -88,13 +78,9 @@ void initADC() {
 	adc_enable(&adc_instance);
 }
 
-enum class MotorIndex {
-	Motor0,
-	Motor1,
-};
-
+/*
 float get_motor_current(MotorIndex const index) {
-	if(index == MotorIndex::Motor0) {
+	if(index == MotorIndex::motor) {
 		adc_set_positive_input(&adc_instance, ADC_POSITIVE_INPUT_PIN1);
 	}
 	else if (index == MotorIndex::Motor1) {
@@ -107,11 +93,17 @@ float get_motor_current(MotorIndex const index) {
 	volatile float opamp_inV = current_opamp_transformation_inV_motor(opamp_outV, 3.3f);
 	volatile float current = acs711_current(opamp_inV, 3.3f);
 	//return current;
-	return 0;
+	return 0;	
 }
+*/
 
 void fillInput(Input &input, Output const &prevOutput) {
 	static ButtonBuffer opBuffer;
+	static float logTimeout = 0;
+	static float syncTimeout = 0;
+
+	//Reset states
+	input.logCycle = false;
 
 	//Determine whether device started
 	if(prevOutput.output[Output::Element::Started])
@@ -122,13 +114,26 @@ void fillInput(Input &input, Output const &prevOutput) {
 	input.time += timeDifference;
 
 	//Time based calculations
-	float distanceDifference = input.vehicleSpeed * timeDifference;
+	float distanceDifference;// = input.vehicleSpeed * timeDifference;
 	input.distance += distanceDifference;
 
 	//If has started, add calculations to started values
 	if(input.started) {
 		input.startTime += timeDifference;
 		input.startDistance += distanceDifference;
+
+		if((logTimeout += timeDifference) >= config::run::loginterval) {
+			logTimeout -= config::run::loginterval;
+			input.logCycle = true;
+			input.samples++;
+		}
+		if((syncTimeout += timeDifference) >= config::run::syncinterval) {
+			syncTimeout -= config::run::syncinterval;
+			f_sync(&runtime::usbmsc->file);
+		}
+	}
+	else {
+		input.samples = 0;
 	}
 
 	//If has started, update 
@@ -136,68 +141,38 @@ void fillInput(Input &input, Output const &prevOutput) {
 	input.totalEnergyUsage += (((input.bms0data.current * input.bms0data.voltage) + (input.bms1data.current * input.bms1data.voltage)) * timeDifference) / 3600.0f;
 	//This for when only one BMS is working
 	//input.totalEnergyUsage += (((input.bms1data.current * input.bms1data.voltage) + (input.bms1data.current * input.bms1data.voltage)) * timeDifference) / 3600.0f;
-	input.motor0EnergyUsage += (input.motor0Current * input.voltage * timeDifference) / 3600.0f;
-	input.motor1EnergyUsage += (input.motor1Current * input.voltage * timeDifference) / 3600.0f;
+	input.motorEnergyUsage += (input.motorCurrent * input.voltage * timeDifference) / 3600.0f;
 
 	//From previous
-	input.motor0DutyCycle = prevOutput.motor0DutyCycle;
-	input.motor1DutyCycle = prevOutput.motor1DutyCycle;
-	input.servo0Position = prevOutput.servo0Position;
-	input.servo1Position = prevOutput.servo1Position;
+	input.motorDutyCycle = prevOutput.motorDutyCycle;
+	input.motorPWMFrequency = prevOutput.motorPWMFrequency;
 	
 	//From sensors
 	input.bms0data = runtime::bms0->get_data();
 	input.bms1data = runtime::bms1->get_data();
-	input.motor0Speed = runtime::encoder0->getSpeed();
-	input.motor1Speed = runtime::encoder1->getSpeed();
-	//input.motor0Current = get_motor_current(MotorIndex::Motor0);
-	//input.motor1Current = get_motor_current(MotorIndex::Motor1);
-	input.servo0Current = runtime::sensor_servo0_current->value();
-	input.servo1Current = runtime::sensor_servo1_current->value();
-	input.servo0Voltage = runtime::sensor_servo0_voltage->value();
-	input.servo1Voltage = runtime::sensor_servo1_voltage->value();
-	input.v3v3Current   = runtime::sensor_3v3_current->value();
-	input.v3v3Voltage   = runtime::sensor_3v3_current->value();
-	input.v5Current     = runtime::sensor_5v_current->value();
-	input.v5Voltage     = runtime::sensor_5v_voltage->value();
+	input.motorSpeed = runtime::encoder0->getSpeed();
+	input.motorTicks = runtime::encoder0->getSampleTotal();
 
-	input.driveSpeed = runtime::encoder2->getSpeed();
+	//input.driveSpeed = runtime::encoder2->getSpeed();
 	input.opState = opBuffer.pressed(!runtime::opPresence->state());
 
 	//Sensor calculations
 	input.voltage = input.bms0data.voltage + input.bms1data.voltage;
-	input.vehicleSpeed = driveIntervalToMs(runtime::encoder2->getAverageInterval());
+	//input.vehicleSpeed = driveIntervalToMs(runtime::encoder2->getAverageInterval());
 }
 
 void processOutput(Output const &output) {
-	if(output.output[Output::Element::Motor0DutyCycle])
-		runtime::motor0->setDutyCycle(output.motor0DutyCycle);
-	if(output.output[Output::Element::Motor1DutyCycle])
-		runtime::motor1->setDutyCycle(output.motor1DutyCycle);
-	if(output.output[Output::Element::Servo0Position])
-		runtime::servo0->setPosition(output.servo0Position);
-	if(output.output[Output::Element::Servo1Position])
-		runtime::servo1->setPosition(output.servo1Position);
-	if(output.output[Output::Element::Servo0Power])
-		port_pin_set_output_level(config::servopower::servo0_power_pin, output.servo0Power);
-	if(output.output[Output::Element::Servo1Power])
-		port_pin_set_output_level(config::servopower::servo1_power_pin, output.servo1Power);
-
+	if(output.output[Output::Element::MotorDutyCycle])
+		runtime::motor0->setDutyCycle(output.motorDutyCycle);
+	if(output.output[Output::Element::MotorPWMFrequency])
+		runtime::motor0->setPeriod(1.0f / output.motorPWMFrequency);
 }
 
 void mergeOutput(Output &dest, Output const &src) {
-	if(src.output[Output::Element::Motor0DutyCycle])
-		dest.motor0DutyCycle = src.motor0DutyCycle;
-	if(src.output[Output::Element::Motor1DutyCycle])
-		dest.motor1DutyCycle = src.motor1DutyCycle;
-	if(src.output[Output::Element::Servo0Position])
-		dest.servo0Position = src.servo0Position;
-	if(src.output[Output::Element::Servo1Position])
-		dest.servo1Position = src.servo1Position;
-	if(src.output[Output::Element::Servo0Power])
-		dest.servo0Power = src.servo0Power;
-	if(src.output[Output::Element::Servo1Power])
-		dest.servo1Power = src.servo1Power;
+	if(src.output[Output::Element::MotorDutyCycle])
+		dest.motorDutyCycle = src.motorDutyCycle;
+	if(src.output[Output::Element::MotorPWMFrequency])
+		dest.motorPWMFrequency = src.motorPWMFrequency;
 	if(src.output[Output::Element::Started])
 		dest.started = src.started;
 	dest.output |= src.output;
@@ -206,25 +181,16 @@ void mergeOutput(Output &dest, Output const &src) {
 void runmanagement::run()
 {
 	initRTC();
-	initADC();
-	Run::init();
+	//initADC();
+	//Run::init();
 	Display disp;
 	Input input;
 	Output output;
 	Task *currentTask = new (pvPortMalloc(sizeof(Idle))) Idle;
-	Task *opCheck = new (pvPortMalloc(sizeof(OPCheck))) OPCheck;
-	//Task *batteryCheck = new (pvPortMalloc(sizeof(BatteryCheck))) BatteryCheck;
-	//Task *motorCheck = new (pvPortMalloc(sizeof(MotorCheck))) MotorCheck;
-
-#if (ENABLE_ADPCONTROL == 1)
-	ADPControl adpcontrol;
-	adpcontrol.init();
-#endif
 	auto allocateNewTask = [&](Task *const returnTask) {
 		currentTask->~Task();
 		vPortFree(currentTask);
 		currentTask = returnTask;
-		currentTask->displayUpdate(disp);
 	};
 	currentTask->displayUpdate(disp);
 	TickType_t previousWakeTime = xTaskGetTickCount();
@@ -241,29 +207,14 @@ void runmanagement::run()
 		if(returnTask != nullptr) {
 			allocateNewTask(returnTask);
 		}
-		//Perform overriding checks
-		for(auto &&element : {opCheck}) {
-			mergeOutput(output, element->update(input));
-			auto returnTask = element->complete(input);
-			if(returnTask != nullptr) {
-				allocateNewTask(returnTask);
-			}
-			element->displayUpdate(disp);
-		}
-#if (ENABLE_MANUALSERIAL == 1)
-		if(currentTask->id != TaskIdentity::Idle)
-#endif	
+		currentTask->displayUpdate(disp);
+		
 		processOutput(output);
 		//Print display
 		if(xTaskGetTickCount() - displayUpdateTime >= config::run::displayrefreshrate) {
 			displayUpdateTime = xTaskGetTickCount();
 			disp.printDisplay(input);
-#if (ENABLE_ADPCONTROL == 1)
-			mergeOutput(output, adpcontrol.update(input));
-#endif
 		}
-		//Set an external LED if the person isn't holding the OP
-		runtime::greenLED->setLEDState(!input.opState);
 		vTaskDelayUntil(&previousWakeTime, config::run::refreshRate);
 	}
 }

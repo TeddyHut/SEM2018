@@ -13,6 +13,7 @@ namespace ValueMatch {
 	template <typename T, typename time_t>
 	class ValueMatch {
 	public:
+		T operator()(time_t const time) const;
 		virtual T currentValue(time_t const time) const = 0;
 		virtual void startup(T const initial, T const destination, time_t const time_initial, time_t const time_destination) = 0;
 		T get_time_destination() const;
@@ -30,6 +31,12 @@ namespace ValueMatch {
 		T m;
 		T c;
 	};
+}
+
+template <typename T, typename time_t>
+T ValueMatch::ValueMatch<T, time_t>::operator()(time_t const time) const
+{
+	return currentValue(time);
 }
 
 template <typename T, typename time_t>

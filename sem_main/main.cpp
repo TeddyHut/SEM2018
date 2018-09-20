@@ -51,15 +51,15 @@ void aliveBlink(LED &buz) {
 	buz.setLEDState(false);
 }
 
-void servo0_startup_callback(TimerHandle_t timer) {
-	port_pin_set_output_level(config::servopower::servo0_power_pin, true);
-	runtime::buzzermanager->registerSequence(servofinished_beep);
-}
-
-void servo1_startup_callback(TimerHandle_t timer) {
-	port_pin_set_output_level(config::servopower::servo1_power_pin, true);
-	runtime::buzzermanager->registerSequence(servofinished_beep);
-}
+//void servo0_startup_callback(TimerHandle_t timer) {
+//	port_pin_set_output_level(config::servopower::servo0_power_pin, true);
+//	runtime::buzzermanager->registerSequence(servofinished_beep);
+//}
+//
+//void servo1_startup_callback(TimerHandle_t timer) {
+//	port_pin_set_output_level(config::servopower::servo1_power_pin, true);
+//	runtime::buzzermanager->registerSequence(servofinished_beep);
+//}
 
 //void servoReg_startup_callback(TimerHandle_t timer) {
 //	port_pin_set_output_level(config::servopower::servo_regulatorEnable_pin, true);
@@ -76,30 +76,19 @@ void main_task(void *const param) {
 	runtime::dep_init();
 	
 	//Register startup sequence
-	runtime::buzzermanager->registerSequence(buzzerStartup);
-	runtime::vbBuzzermanager->registerSequence(buzzerStartup);
-	runtime::greenLEDmanager->registerSequence(ledStartup);
-	runtime::redLEDmanager->registerSequence(ledStartup);
+	//runtime::buzzermanager->registerSequence(buzzerStartup);
+	//runtime::vbBuzzermanager->registerSequence(buzzerStartup);
+	//runtime::greenLEDmanager->registerSequence(ledStartup);
+	//runtime::redLEDmanager->registerSequence(ledStartup);
 	runtime::vbLEDmanager->registerSequence(ledStartup);
 	runtime::viewerboard->clearDisplay();
 	runtime::viewerboard->send();
 
 	//Put motors and servos in default positions
 	runtime::motor0->setDutyCycle(0);
-	runtime::motor1->setDutyCycle(0);
-	runtime::servo0->setPosition(config::run::servo0restposition);
-	runtime::servo1->setPosition(config::run::servo1restposition);
+	//runtime::motor1->setDutyCycle(0);
 
-#if (ENABLE_MANUALSERIAL == 1)
-	ManualSerial manserial;
-	manserial.init();
-#endif
-	
 	xTimerStart(xTimerCreate("aliveBlink", msToTicks(5000), pdTRUE, 0, activeCallback), portMAX_DELAY);
-	//xTimerStart(xTimerCreate("servoReg_start", msToTicks(2000), pdFALSE, 0, servoReg_startup_callback), portMAX_DELAY);
-	xTimerStart(xTimerCreate("servo0startup", msToTicks(3000), pdFALSE, 0, servo0_startup_callback), portMAX_DELAY);
-	xTimerStart(xTimerCreate("servo1startup", msToTicks(4000), pdFALSE, 0, servo1_startup_callback), portMAX_DELAY);
-
 	runmanagement::run();
 }
 
@@ -152,7 +141,7 @@ int main(void)
 	//port_pin_set_output_level(config::servopower::servo1_power_pin, true);
 
 	TaskHandle_t task;
-	xTaskCreate(main_task, "main", 512, nullptr, 1, &task);
+	xTaskCreate(main_task, "main", 350, nullptr, 1, &task);
 
 	vTaskStartScheduler();
 	debugbreak();

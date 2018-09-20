@@ -71,14 +71,17 @@ namespace config {
 
 		constexpr TickType_t displaycycleperiod = msToTicks(5000);
 		constexpr TickType_t displayrefreshrate = msToTicks(100);
-		constexpr TickType_t refreshRate = msToTicks(1000.0f / 60.0f);
+		constexpr TickType_t refreshRate = msToTicks(1000.0f / 120.0f);
+		constexpr float loginterval = 1.0f / 45.0f;
+		constexpr float syncinterval = 1.0f / 1.0f;
+		constexpr float testRestTime = 5.0f;
 		constexpr float speedmatchcorrecttimeout = 1.5f;
 
 		constexpr size_t buttonBufferSize = 10;
 	}
 	namespace hardware {
 		constexpr float motortogeartickratio = 0.482; //Enoder0.getinterval / encoder2.getinterval
-		constexpr float motorteeth = 12;
+		constexpr float motorteeth = 1;//12;
 		constexpr float wheelradius = 0.43 / 2;
 	}
 	namespace adpcontrol {
@@ -87,8 +90,7 @@ namespace config {
 		constexpr unsigned int taskPriority = 1;
 	}
 	namespace servo {
-		constexpr float clockFrequency = 39999900;
-		//48000000;
+		constexpr float clockFrequency = 48000000;
 		constexpr float period = 0.02;
 		constexpr float servominpulse = 0.000544;
 		constexpr float servomaxpulse = 0.0024;
@@ -126,7 +128,7 @@ namespace config {
 		constexpr float period = 1 / 2400.0f;
 	}
 	namespace encoder {
-		constexpr size_t bufferSize = 10;
+		constexpr size_t bufferSize = 2;
 		constexpr tcc_clock_prescaler prescaeSetting = TCC_CLOCK_PRESCALER_DIV1;
 		constexpr gclk_generator clockSource = GCLK_GENERATOR_3;
 		//1 second of no ticks results in an output of zero
@@ -192,5 +194,10 @@ namespace config {
 		constexpr unsigned int servo_regulatorEnable_pin = PIN_PA23;
 		constexpr unsigned int servo0_power_pin = PIN_PA07;
 		constexpr unsigned int servo1_power_pin = SERVO1_ENABLE_PIN;
+	}
+	namespace usbmsc {
+		constexpr char const * taskName = "USBMSC";
+		constexpr uint16_t taskStackDepth = 512;
+		constexpr unsigned int taskPriority = 1;
 	}
 }

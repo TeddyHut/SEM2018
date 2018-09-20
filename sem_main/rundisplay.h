@@ -14,8 +14,21 @@
 
 namespace Run {
 	class DisplayLine {
-		public:
+	public:
+		enum class ID : uint8_t {
+			None,
+			Idle,
+			Battery,
+			Settings,
+			USSB,
+			Samples,
+			Torque,
+			DutyCycle,
+			Frequency,
+			Delay,
+		} id;
 		virtual void get_text(char str[], Input const &input) = 0;
+		DisplayLine(ID const id = ID::None);
 		virtual ~DisplayLine() = default;
 	};
 
@@ -34,16 +47,63 @@ namespace Run {
 	//Displays the startup prompt for top line
 	class DL_Idle_Top : public DisplayLine {
 	public:
-		DL_Idle_Top(int const&countdown);
+		DL_Idle_Top(int const &countdown);
 		void get_text(char str[], Input const &input) override;
 	private:
 		int const &countdown;
+	};
+
+	class DL_USB : public DisplayLine {
+	public:
+		void get_text(char str[], Input const &input) override;
+		DL_USB();
+	};
+
+	class DL_Settings : public DisplayLine {
+	public:
+		void get_text(char str[], Input const &input) override;
+		DL_Settings();
+	};
+
+	class DL_Samples : public DisplayLine {
+	public:
+		void get_text(char str[], Input const &input) override;
+		DL_Samples();
+	};
+
+	class DL_DutyCycle : public DisplayLine {
+	public:
+		void get_text(char str[], Input const &input) override;
+		DL_DutyCycle();
+	};
+
+	class DL_Frequency : public DisplayLine {
+	public:
+		void get_text(char str[], Input const &input) override;
+		DL_Frequency();
+	};
+
+	class DL_Torque : public DisplayLine {
+	public:
+		void get_text(char str[], Input const &input) override;
+		DL_Torque(float const &torque);
+	private:
+		float const &torque;
+	};
+
+	class DL_Delay : public DisplayLine {
+	public:
+		void get_text(char str[], Input const &input) override;
+		DL_Delay(float const finishTime);
+	private:
+		float const finishTime;
 	};
 
 	//Displays battery statistics
 	class DL_Battery : public DisplayLine, public TimerUpdate {
 	public:
 		void get_text(char str[], Input const &input) override;
+		DL_Battery();
 	protected:
 		void cycle() override;
 		enum class Cycle {
@@ -66,37 +126,6 @@ namespace Run {
 			Time,
 			_size,
 		} curcycle = Cycle::SpeedEnergy;
-	};
-
-	//Alternates between ramping statistics (motor current usages, duty cycle, ramping speed)
-	class DL_Ramping : public DisplayLine, public TimerUpdate {
-	public:
-		void get_text(char str[], Input const &input) override;
-	protected:
-		void cycle() override;
-		enum class Cycle {
-			MotorCurrent = 0,
-			DutyCycle,
-			Rampspeed,
-			_size,
-		} curcycle = Cycle::MotorCurrent;
-	};
-
-	//Alternates between coasting statistics (distance traveled, time coasting, battery voltages)
-	class DL_Coasting : public DisplayLine, public TimerUpdate {
-	public:
-		void get_text(char str[], Input const &input) override;
-	protected:
-		void cycle() override;
-		enum class Cycle {
-			Distance = 0,
-			CoastTime,
-			BatteryVoltage,
-			_size,
-		} curcycle = Cycle::Distance;
-		//Used to workout coasting time
-		bool firstGetText = true;
-		float starttime;
 	};
 
 	class DL_Finished : public DisplayLine, public TimerUpdate {

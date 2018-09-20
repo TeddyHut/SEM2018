@@ -17,20 +17,21 @@ extern "C" {
 
 using GPIOPin_OP_t = GPIOPinHW<PIN_PA05A_EIC_EXTINT5, MUX_PA05A_EIC_EXTINT5, 5>;
 
-Buzzer					*runtime::buzzer			= nullptr;
+//Buzzer					*runtime::buzzer			= nullptr;
 Buzzer					*runtime::vbBuzzer			= nullptr;
-BuzzerManager			*runtime::buzzermanager		= nullptr;
+//BuzzerManager			*runtime::buzzermanager		= nullptr;
 BuzzerManager			*runtime::vbBuzzermanager	= nullptr;
 ViewerBoard				*runtime::viewerboard		= nullptr;
-LED						*runtime::greenLED			= nullptr;
-LED						*runtime::redLED			= nullptr;
+//LED						*runtime::greenLED			= nullptr;
+//LED						*runtime::redLED			= nullptr;
 LED						*runtime::vbLED				= nullptr;
-LEDManager				*runtime::greenLEDmanager	= nullptr;
-LEDManager				*runtime::redLEDmanager		= nullptr;
+//LEDManager				*runtime::greenLEDmanager	= nullptr;
+//LEDManager				*runtime::redLEDmanager		= nullptr;
 LEDManager				*runtime::vbLEDmanager		= nullptr;
 SPIManager				*runtime::mainspi			= nullptr;
-TWIManager				*runtime::maintwi			= nullptr;
+//TWIManager				*runtime::maintwi			= nullptr;
 GPIOPin					*runtime::opPresence		= nullptr;
+USBMSC					*runtime::usbmsc			= nullptr;
 
 void runtime::init()
 {
@@ -48,31 +49,35 @@ void runtime::init()
 	//Encoders
 	system_interrupt_set_priority(SYSTEM_INTERRUPT_MODULE_EVSYS, SYSTEM_INTERRUPT_PRIORITY_LEVEL_0);
 	system_interrupt_set_priority(SYSTEM_INTERRUPT_MODULE_TCC2, SYSTEM_INTERRUPT_PRIORITY_LEVEL_0);
+	//USB
+	system_interrupt_set_priority(SYSTEM_INTERRUPT_MODULE_USB, SYSTEM_INTERRUPT_PRIORITY_LEVEL_2);
 
 	viewerboard			= new (pvPortMalloc(sizeof(ViewerBoard))			)	ViewerBoard;
 	mainspi				= new (pvPortMalloc(sizeof(SPIManager0))			)	SPIManager0;
-	maintwi				= new (pvPortMalloc(sizeof(TWIManager0))			)	TWIManager0;
-	buzzer				= new (pvPortMalloc(sizeof(Buzzer0))				)	Buzzer0;
+	//maintwi				= new (pvPortMalloc(sizeof(TWIManager0))			)	TWIManager0;
+	//buzzer				= new (pvPortMalloc(sizeof(Buzzer0))				)	Buzzer0;
 	vbBuzzer			= new (pvPortMalloc(sizeof(ViewerBoard::Buzzer))	)	ViewerBoard::Buzzer(*viewerboard);
-	buzzermanager		= new (pvPortMalloc(sizeof(BuzzerManager))		)	BuzzerManager;
+	//buzzermanager		= new (pvPortMalloc(sizeof(BuzzerManager))		)	BuzzerManager;
 	vbBuzzermanager		= new (pvPortMalloc(sizeof(BuzzerManager))		)	BuzzerManager;
-	greenLED			= new (pvPortMalloc(sizeof(PortLED))				)	PortLED;
-	redLED				= new (pvPortMalloc(sizeof(PortLED))				)	PortLED;
+	//greenLED			= new (pvPortMalloc(sizeof(PortLED))				)	PortLED;
+	//redLED				= new (pvPortMalloc(sizeof(PortLED))				)	PortLED;
 	vbLED				= new (pvPortMalloc(sizeof(ViewerBoard::LED))		)	ViewerBoard::LED(*viewerboard);
-	greenLEDmanager		= new (pvPortMalloc(sizeof(LEDManager))			)	LEDManager;
-	redLEDmanager		= new (pvPortMalloc(sizeof(LEDManager))			)	LEDManager;
+	//greenLEDmanager		= new (pvPortMalloc(sizeof(LEDManager))			)	LEDManager;
+	//redLEDmanager		= new (pvPortMalloc(sizeof(LEDManager))			)	LEDManager;
 	vbLEDmanager		= new (pvPortMalloc(sizeof(LEDManager))			)	LEDManager;
 	opPresence			= new (pvPortMalloc(sizeof(GPIOPin_OP_t)))			GPIOPin_OP_t;
+	usbmsc				= new (pvPortMalloc(sizeof(USBMSC)))				USBMSC;
 
 	viewerboard								->init();
 	static_cast<SPIManager0 *>(mainspi)		->init();
-	static_cast<TWIManager0 *>(maintwi)     ->init();
-	static_cast<Buzzer0 *>(buzzer)			->init();
-	buzzermanager							->init(buzzer);
+	//static_cast<TWIManager0 *>(maintwi)     ->init();
+	//static_cast<Buzzer0 *>(buzzer)			->init();
+	//buzzermanager							->init(buzzer);
 	vbBuzzermanager							->init(vbBuzzer);
-	static_cast<PortLED *>(greenLED)		->init(PIN_PA28);
-	static_cast<PortLED *>(redLED)			->init(PIN_PA27);
-	greenLEDmanager							->init(greenLED);
-	redLEDmanager							->init(redLED);
+	//static_cast<PortLED *>(greenLED)		->init(PIN_PA28);
+	//static_cast<PortLED *>(redLED)			->init(PIN_PA27);
+	//greenLEDmanager							->init(greenLED);
+	//redLEDmanager							->init(redLED);
 	vbLEDmanager							->init(vbLED);
+	usbmsc->init();
 }

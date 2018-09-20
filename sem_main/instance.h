@@ -13,21 +13,23 @@
 #include "spimanager.h"
 #include "twimanager.h"
 #include "gpioinput.h"
+#include "usbmsc.h"
 
 namespace runtime {
 	void init();
-	extern Buzzer			*buzzer;
+	//extern Buzzer			*buzzer;
 	extern Buzzer			*vbBuzzer;
-	extern BuzzerManager	*buzzermanager;
+	//extern BuzzerManager	*buzzermanager;
 	extern BuzzerManager	*vbBuzzermanager;
 	extern ViewerBoard		*viewerboard;
 	extern SPIManager		*mainspi;
-	extern TWIManager       *maintwi;
-	extern LED				*greenLED;
-	extern LED				*redLED;
+	//extern TWIManager       *maintwi;
+	//extern LED				*greenLED;
+	//extern LED				*redLED;
 	extern LED				*vbLED;
-	extern LEDManager		*greenLEDmanager;
-	extern LEDManager		*redLEDmanager;
+	//extern LEDManager		*greenLEDmanager;
+	//extern LEDManager		*redLEDmanager;
 	extern LEDManager		*vbLEDmanager;
 	extern GPIOPin			*opPresence;
+	extern USBMSC			*usbmsc;
 }

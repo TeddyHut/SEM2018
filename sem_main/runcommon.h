@@ -15,16 +15,11 @@ namespace Run {
 	enum class TaskIdentity {
 		None = 0,
 		Idle,
-		Startup,
-		Engage,
-		Disengage,
-		Coast,
-		CoastRamp,
-		SpeedMatch,
+		Pull,
+		DutyCycle,
+		Frequency,
+		Delay,
 		OPCheck,
-		BatteryCheck,
-		MotorCheck,
-		ADPControl,
 		_size,
 	};
 
@@ -38,47 +33,18 @@ namespace Run {
 		BMS::Data bms1data;
 		//Total voltage of both batteries
 		float voltage = 0;
-		//Duty cycle (0-1) of motor0
-		float motor0DutyCycle = 0;
-		//Duty cycle (0-1) of motor1
-		float motor1DutyCycle = 0;
-		//Position (-180-180) of servo0
-		float servo0Position = config::run::servo0restposition;
-		//Position (-180-180) of servo1
-		float servo1Position = config::run::servo1restposition;
-		//Speed of motor0 (teeth per second)
-		float motor0Speed = 0;
-		//Speed of motor1 (teeth per second)
-		float motor1Speed = 0;
-		//Speed of drive shaft (teeth per second)
-		float driveSpeed = 0;
-		//Speed of vehicle (m/s)
-		float vehicleSpeed = 0;
-		//Current going through motor0 (A)
-		float motor0Current = 0;
-		//Current going through motor1 (A)
-		float motor1Current = 0;
-		//Total energy usage of motor0 (W/h)
-		float motor0EnergyUsage = 0;
-		//Total energy usage of motor1 (W/h)
-		float motor1EnergyUsage = 0;
-		//Current going through servo0 (A)
-		float servo0Current = 0;
-		//Current going through servo1 (A)
-		float servo1Current = 0;
-		//Voltage for servo0
-		float servo0Voltage = 0;
-		//Voltage for servo1
-		float servo1Voltage = 0;
-		//Current on 3.3V rail (A)
-		float v3v3Current = 0;
-		//Voltage on 3.3V rail
-		float v3v3Voltage = 0;
-		//Current on 5V rail (A)
-		float v5Current = 0;
-		//Voltage on 5V rail
-		float v5Voltage = 0;
-		//Voltage from 3.3V regulat
+		//The frequency of the motor
+		float motorPWMFrequency = 0;
+		//Duty cycle (0-1) of motor
+		float motorDutyCycle = 0;
+		//Speed of motor (rotations per second)
+		float motorSpeed = 0;
+		//The number of 'ticks' (encoder interrupts) the motor has had
+		unsigned int motorTicks = 0;
+		//Current going through motor (A)
+		float motorCurrent = 0;
+		//Total energy usage of motor (W/h)
+		float motorEnergyUsage = 0;
 		//Total energy usage overall (W/h)
 		float totalEnergyUsage = 0;
 		//The total distance covered
@@ -87,6 +53,11 @@ namespace Run {
 		bool opState = false;
 		//Whether the vehicle has started or not
 		bool started = false;
+		//Whether to log data on this iteration
+		bool logCycle = false;
+		//The number of log samples taken
+		unsigned int samples = 0;
+		//The 
 		//Distance covered since starting
 		float startDistance = 0;
 		//Time since starting
@@ -98,22 +69,14 @@ namespace Run {
 	struct Output {
 		struct Element {
 			enum {
-				Motor0DutyCycle = 0,
-				Motor1DutyCycle,
-				Servo0Position,
-				Servo1Position,
-				Servo0Power,
-				Servo1Power,
+				MotorDutyCycle = 0,
+				MotorPWMFrequency,
 				Started,
 				_size,
 			};
 		};
-		float motor0DutyCycle;
-		float motor1DutyCycle;
-		float servo0Position;
-		float servo1Position;
-		bool servo0Power;
-		bool servo1Power;
+		float motorDutyCycle;
+		float motorPWMFrequency;
 		bool started = false;
 		std::bitset<Element::_size> output;
 	};
