@@ -70,6 +70,7 @@ namespace program {
 			Times,
 			PWMFrequency,
 			SampleFrequency,
+			Wheel,
 			_size,
 		} curcycle = Cycle::File;
 	};

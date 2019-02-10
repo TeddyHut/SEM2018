@@ -27,14 +27,14 @@ constexpr float current_opamp_transformation_inV_motor(float const outV, float c
 	return (outV + (vcc * (5.1 / (2 * 1 + 10)))) / ((5.1 * (2 * (1 + 5.1) + 10)) / ((1 + 5.1) * (2 * 1 + 10)));
 }
 
-constexpr float driveIntervalToMs(float const interval) {
+float driveIntervalToMs(float const interval) {
 	if(interval <= 0)
 		return 0;
 	float const sec_interval = (interval / config::motor::clockFrequency);
 	//Speed = distance / time
 	//Distance = circumference / 8
 	//Time = sec_interval
-	return ((config::hardware::wheelradius * 2 * M_PI) / config::hardware::wheelsamplepoints) / sec_interval;
+	return ((runtime::usbmsc->settings.wheelRadius * 2 * M_PI) / runtime::usbmsc->settings.wheelSamplePoints) / sec_interval;
 }
 
 //Prevents noise/button hardware error on the OP presence button
@@ -229,7 +229,7 @@ void makeLogEntries(Input const &input, Task *const currenttask) {
 			input.bms1data.voltage, //Bat1 voltage
 			input.bms0data.temperature, //Bat0 temp
 			input.bms1data.temperature, //Bat1 temp
-			(input.bms0data.current * input.bms0data.voltage) + (input.bms1data.current * input.bms1data.voltage), //Power (W) (V*I)
+			std::max(0.0f, std::min(input.bms0data.current, input.bms1data.current)) * (input.bms0data.voltage + input.bms1data.voltage), //Power (W) (V*I)
 			input.totalEnergyUsage * 3600.0f, //Total energy usage is in Wh, convert to J
 			input.motorDutyCycle, //MotorDuty
 			input.vehicleSpeedMs, //Velocity
@@ -279,8 +279,8 @@ void runmanagement::run()
 			auto returnTask = element->complete(input);
 			if(returnTask != nullptr) {
 				allocateNewTask(returnTask);
-			}
 			element->displayUpdate(disp);
+			}
 		}
 		currentTask->displayUpdate(disp);
 

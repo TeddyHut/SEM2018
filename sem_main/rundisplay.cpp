@@ -169,6 +169,9 @@ void program::DL_Settings::get_text(char str[], Input const &input)
 	case Cycle::SampleFrequency:
 		rpl_snprintf(str, 17, "SplFreq: %5.2fHz", runtime::usbmsc->settings.sampleFrequency);
 		break;
+	case Cycle::Wheel:
+		rpl_snprintf(str, 17, "Rad %3umm Mags %u", static_cast<unsigned int>(runtime::usbmsc->settings.wheelRadius * 1000.0f), runtime::usbmsc->settings.wheelSamplePoints);
+		break;
 	case Cycle::_size:
 		break;
 	}

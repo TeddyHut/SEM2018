@@ -145,9 +145,12 @@ program::Startup::Startup(Input const &input) : Task(TaskIdentity::Startup)
 	f_puts(str, &runtime::usbmsc->file);
 	f_sync(&runtime::usbmsc->file);
 	
-	rpl_snprintf(str, sizeof str, "CruiseMin(kmh-ms),%3.1f,%4.2f,\nCruiseMax(kmh-ms),%3.1f,%4.2f,\n",
+	rpl_snprintf(str, sizeof str, "CruiseMin(kmh-ms),%3.1f,%4.2f,\nCruiseMax(kmh-ms),%3.1f,%4.2f,\nWheelRadius,%.3f,\nMagnets,%u,\n",
 		runtime::usbmsc->settings.cruiseMin, kmhToMs(runtime::usbmsc->settings.cruiseMin),
-		runtime::usbmsc->settings.cruiseMax, kmhToMs(runtime::usbmsc->settings.cruiseMax));
+		runtime::usbmsc->settings.cruiseMax, kmhToMs(runtime::usbmsc->settings.cruiseMax),
+		runtime::usbmsc->settings.wheelRadius,
+		runtime::usbmsc->settings.wheelSamplePoints
+		);
 	f_puts(str, &runtime::usbmsc->file);
 	f_sync(&runtime::usbmsc->file);
 

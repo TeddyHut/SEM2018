@@ -21,6 +21,8 @@ public:
 		float coastramptime = 0; //seconds
 		float cruiseMin = 0; //km/h
 		float cruiseMax = 0; //km/h
+		float wheelRadius = 0; //m
+		unsigned int wheelSamplePoints = 0; //Number of magnets
 
 	};
 	enum class WakeCause {

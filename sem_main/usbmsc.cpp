@@ -128,10 +128,13 @@ void USBMSC::task_main()
 		char coastramptime[strlen];
 		char cruiseMin[strlen];
 		char cruiseMax[strlen];
+		char wheelRadius[strlen];
+		char wheelSamplePoints[strlen];
 
 		bool getserror = false;
 		for(auto str : {sampleFrequency, motorFrequency, startupramptime,
-				coastramptime, cruiseMin, cruiseMax}) {
+				coastramptime, cruiseMin, cruiseMax,
+				wheelRadius, wheelSamplePoints}) {
 			if(nullptr == f_gets(str, strlen, &settingsFile)) {
 				getserror = true;
 				break;
@@ -157,6 +160,8 @@ void USBMSC::task_main()
 		settings.coastramptime = std::strtof(coastramptime, nullptr);
 		settings.cruiseMin = std::strtof(cruiseMin, nullptr);
 		settings.cruiseMax = std::strtof(cruiseMax, nullptr);
+		settings.wheelRadius = std::strtof(wheelRadius, nullptr);
+		settings.wheelSamplePoints = std::atoi(wheelSamplePoints);
 
 		//Keep attempting to open logNN files until we find a new one
 		for(unsigned int index = 0; true; index++) {

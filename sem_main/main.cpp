@@ -77,7 +77,7 @@ void main_task(void *const param) {
 	
 	//Register startup sequence
 	//runtime::buzzermanager->registerSequence(buzzerStartup);
-	//runtime::vbBuzzermanager->registerSequence(buzzerStartup);
+	runtime::vbBuzzermanager->registerSequence(buzzerStartup);
 	//runtime::greenLEDmanager->registerSequence(ledStartup);
 	//runtime::redLEDmanager->registerSequence(ledStartup);
 	runtime::vbLEDmanager->registerSequence(ledStartup);
