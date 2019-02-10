@@ -10,23 +10,18 @@
 #include <FreeRTOS.h>
 #include <task.h>
 #include <uhc.h>
-#include "ff.h"
+#include "ff.h" //Final Fantasy.h (Kappa)
 
 class USBMSC {
 public:
 	struct Settings {
-		enum class TestType {
-			None,
-			Torque,
-			DutyCycle,
-			Frequency,
-		} testtype = TestType::None;
-		float holdTime = 0;
-		float springConstant = 0;
-		float dutyCycle[2] = {0, 0};
-		float frequency[2] = {0, 0};
-		unsigned int dutyCycleDivisions = 0;
-		unsigned int frequencyDivisions = 0;
+		float sampleFrequency = 0; //Hz
+		float motorFrequency = 0; //Hz
+		float startupramptime = 0; //seconds
+		float coastramptime = 0; //seconds
+		float cruiseMin = 0; //km/h
+		float cruiseMax = 0; //km/h
+
 	};
 	enum class WakeCause {
 		None,
@@ -57,5 +52,5 @@ private:
 	char lasterror[16];
 	char fileName[16];
 	//Less than zero means to just load settings.txt
-	int settingsIndex = 5;
+	int settingsIndex = -1;
 };

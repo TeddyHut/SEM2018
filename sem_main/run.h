@@ -19,7 +19,7 @@
 #include "runcommon.h"
 #include "rundisplay.h"
 
-namespace Run {
+namespace program {
 	void init();
 
 	class Task {
@@ -31,6 +31,7 @@ namespace Run {
 		Task(TaskIdentity const id = TaskIdentity::None);
 		virtual ~Task() = default;
 	};
+
 	//Desc: Waits until the OP button is pressed, and then starts testing
 	//NextTast:
 	class Idle : public Task {
@@ -46,50 +47,65 @@ namespace Run {
 		int countdown = -1;
 	};
 
-	class Pull : public Task {
+	//Desc: Brings motor duty cycle upto 100% over time of config::run::rampuptime. Stops motors when input.driveSpeed is greater than config::run::maxspeed
+	//NextTask: Disengage(Both)
+	class Startup : public Task {
 	public:
-		Pull();
+		Output update(Input const &input) override;
+		Task *complete(Input const &input) override;
+		void displayUpdate(Display &disp) override;
+		Startup(Input const &input);
+	private:
+		ValueMatch::Linear<float, float> f;
+	};
+
+	//Desc: Waits until speed is less than or equal to config::minspeed
+	//NextTask: SpeedMatch
+	class Coast : public Task {
+	public:
+		Coast();
 		Output update(Input const &input) override;
 		Task *complete(Input const &input) override;
 		void displayUpdate(Display &disp) override;
 	};
 
-	//Should REALLY put these two in a common base class... but it doesn't really matter in this instance
-	//Tests duty cycle effect on speed
-	class DutyCycle : public Task {
+	//Desc: Ramps up dutyCycle of motor0 until the maximum speed is reached
+	//NextTask: Disengage(Servo0)
+	class CoastRamp : public Task {
 	public:
-		DutyCycle();
 		Output update(Input const &input) override;
 		Task *complete(Input const &input) override;
 		void displayUpdate(Display &disp) override;
+		CoastRamp(Input const &input);
 	private:
-		bool initialised = false;
-		ValueMatch::Linear<float, float> f1;
-		int stage = 0;
-		float lastStageTime = 0;
+		ValueMatch::Linear<float, float> f;
 	};
 
-	class Frequency : public Task {
+	class Finished : public Task {
 	public:
-		Frequency();
+		Finished(float const time, float const energy, float const distance);
 		Output update(Input const &input) override;
 		Task *complete(Input const &input) override;
 		void displayUpdate(Display &disp) override;
 	private:
-		bool initialised = false;
-		ValueMatch::Linear<float, float> f1;
-		int stage = 0;
-		float lastStageTime = 0;
+		float time = 0;
+		float energy = 0;
+		float distance = 0;
 	};
 
-	class Delay : public Task {
+	//---Non funcitonality tasks---
+	class OPCheck : public Task {
 	public:
-		Delay();
 		Output update(Input const &input) override;
 		Task *complete(Input const &input) override;
-		void displayUpdate(Display &disp) override;
+		OPCheck();
 	private:
-		bool initialised = false;
-		float startTime;
+		SemaphoreHandle_t sem_buzzerComplete;
+		bool previousOPState = false;
+		bool buzzerInQueue = false;
+		bool keepBeeping = true;
+		float errorTime = 0;
+		bool finished = false;
+		
 	};
 }

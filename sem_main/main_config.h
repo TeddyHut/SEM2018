@@ -83,6 +83,7 @@ namespace config {
 		constexpr float motortogeartickratio = 0.482; //Enoder0.getinterval / encoder2.getinterval
 		constexpr float motorteeth = 1;//12;
 		constexpr float wheelradius = 0.43 / 2;
+		constexpr float wheelsamplepoints = 4.0f;
 	}
 	namespace adpcontrol {
 		constexpr uint16_t taskStackDepth = 256;

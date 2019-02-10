@@ -17,7 +17,7 @@
 #include <task.h>
 #include <adc.h>
 
-using namespace Run;
+using namespace program;
 
 constexpr float current_opamp_transformation_outV_motor(float const inV, float const vcc) {
 	return (inV * ((5.1 * (2 * (1 + 5.1) + 10)) / ((1 + 5.1) * (2 * 1 + 10)))) - (vcc * (5.1 / (2 * 1 + 10)));
@@ -25,6 +25,16 @@ constexpr float current_opamp_transformation_outV_motor(float const inV, float c
 
 constexpr float current_opamp_transformation_inV_motor(float const outV, float const vcc) {
 	return (outV + (vcc * (5.1 / (2 * 1 + 10)))) / ((5.1 * (2 * (1 + 5.1) + 10)) / ((1 + 5.1) * (2 * 1 + 10)));
+}
+
+constexpr float driveIntervalToMs(float const interval) {
+	if(interval <= 0)
+		return 0;
+	float const sec_interval = (interval / config::motor::clockFrequency);
+	//Speed = distance / time
+	//Distance = circumference / 8
+	//Time = sec_interval
+	return ((config::hardware::wheelradius * 2 * M_PI) / config::hardware::wheelsamplepoints) / sec_interval;
 }
 
 //Prevents noise/button hardware error on the OP presence button
@@ -101,6 +111,7 @@ void fillInput(Input &input, Output const &prevOutput) {
 	static ButtonBuffer opBuffer;
 	static float logTimeout = 0;
 	static float syncTimeout = 0;
+	static bool previousStarted = false;
 
 	//Reset states
 	input.logCycle = false;
@@ -114,31 +125,39 @@ void fillInput(Input &input, Output const &prevOutput) {
 	input.time += timeDifference;
 
 	//Time based calculations
-	float distanceDifference;// = input.vehicleSpeed * timeDifference;
+	float distanceDifference = input.vehicleSpeedMs * timeDifference;
 	input.distance += distanceDifference;
 
 	//If has started, add calculations to started values
 	if(input.started) {
+		//Always log if just started
+		if(previousStarted == false) {
+			previousStarted = true;
+			input.logCycle = runtime::usbmsc->isReady();
+		}
 		input.startTime += timeDifference;
 		input.startDistance += distanceDifference;
 
-		if((logTimeout += timeDifference) >= config::run::loginterval) {
-			logTimeout -= config::run::loginterval;
-			input.logCycle = true;
+		if((logTimeout += timeDifference) >= 1.0f / runtime::usbmsc->settings.sampleFrequency) {
+			logTimeout -= (1.0f / runtime::usbmsc->settings.sampleFrequency);
+			//Only log of the USB is still connected
+			input.logCycle = runtime::usbmsc->isReady();
 			input.samples++;
 		}
 		if((syncTimeout += timeDifference) >= config::run::syncinterval) {
 			syncTimeout -= config::run::syncinterval;
-			f_sync(&runtime::usbmsc->file);
+			//Only sync if USB is still connected
+			if(runtime::usbmsc->isReady())
+				f_sync(&runtime::usbmsc->file);
 		}
+
+		//Energy in W/s (joules) / 3600 to get W/h
+		input.totalEnergyUsage += (((input.bms0data.current * input.bms0data.voltage) + (input.bms1data.current * input.bms1data.voltage)) * timeDifference) / 3600.0f;
 	}
 	else {
 		input.samples = 0;
 	}
 
-	//If has started, update 
-	//Energy in W/s (joules) / 3600 to get W/h
-	input.totalEnergyUsage += (((input.bms0data.current * input.bms0data.voltage) + (input.bms1data.current * input.bms1data.voltage)) * timeDifference) / 3600.0f;
 	//This for when only one BMS is working
 	//input.totalEnergyUsage += (((input.bms1data.current * input.bms1data.voltage) + (input.bms1data.current * input.bms1data.voltage)) * timeDifference) / 3600.0f;
 	input.motorEnergyUsage += (input.motorCurrent * input.voltage * timeDifference) / 3600.0f;
@@ -150,15 +169,17 @@ void fillInput(Input &input, Output const &prevOutput) {
 	//From sensors
 	input.bms0data = runtime::bms0->get_data();
 	input.bms1data = runtime::bms1->get_data();
-	input.motorSpeed = runtime::encoder0->getSpeed();
+	input.motorRPS = runtime::encoder0->getSpeed();
 	input.motorTicks = runtime::encoder0->getSampleTotal();
 
-	//input.driveSpeed = runtime::encoder2->getSpeed();
+	input.wheelRPS = runtime::encoder0->getSpeed();
+	input.wheelTicks = runtime::encoder0->getSampleTotal();
+
 	input.opState = opBuffer.pressed(!runtime::opPresence->state());
 
 	//Sensor calculations
 	input.voltage = input.bms0data.voltage + input.bms1data.voltage;
-	//input.vehicleSpeed = driveIntervalToMs(runtime::encoder2->getAverageInterval());
+	input.vehicleSpeedMs = driveIntervalToMs(runtime::encoder0->getAverageInterval());
 }
 
 void processOutput(Output const &output) {
@@ -178,6 +199,47 @@ void mergeOutput(Output &dest, Output const &src) {
 	dest.output |= src.output;
 }
 
+void makeLogEntries(Input const &input, Task *const currenttask) {
+	if(input.started && currenttask->id != TaskIdentity::Finished && input.logCycle) {
+		char strmode[16];
+		switch(currenttask->id) {
+		default:
+			strcpy(strmode, "Unknown");
+			break;
+		case TaskIdentity::Startup:
+			strcpy(strmode, "Startup");
+			break;
+		case TaskIdentity::Coast:
+			strcpy(strmode, "Coast");
+			break;
+		case TaskIdentity::CoastRamp:
+			strcpy(strmode, "CoastRamp");
+			break;
+		case TaskIdentity::Finished:
+			strcpy(strmode, "Finished");
+			break;
+		}
+		char str[196];
+		rpl_snprintf(str, sizeof str, "%u,%.3f,%s,%.3f,%4.1f,%4.1f,%4.1f,%4.1f,%.3f,%.3f,%.2f,%.3f,%.2f,%u,\n",
+			input.samples, //Samples
+			input.startTime, //Runtime
+			strmode, //Mode
+			std::max(0.0f, std::min(input.bms0data.current, input.bms1data.current)), //Current
+			input.bms0data.voltage, //Bat0 voltage
+			input.bms1data.voltage, //Bat1 voltage
+			input.bms0data.temperature, //Bat0 temp
+			input.bms1data.temperature, //Bat1 temp
+			(input.bms0data.current * input.bms0data.voltage) + (input.bms1data.current * input.bms1data.voltage), //Power (W) (V*I)
+			input.totalEnergyUsage * 3600.0f, //Total energy usage is in Wh, convert to J
+			input.motorDutyCycle, //MotorDuty
+			input.vehicleSpeedMs, //Velocity
+			input.startDistance, //Distance
+			input.opState ? 1 : 0 //OP
+			);
+		f_puts(str, &runtime::usbmsc->file);
+	}
+}
+
 void runmanagement::run()
 {
 	initRTC();
@@ -186,13 +248,17 @@ void runmanagement::run()
 	Display disp;
 	Input input;
 	Output output;
+
 	Task *currentTask = new (pvPortMalloc(sizeof(Idle))) Idle;
+	Task *opCheck = new (pvPortMalloc(sizeof(OPCheck))) OPCheck;
+
 	auto allocateNewTask = [&](Task *const returnTask) {
 		currentTask->~Task();
 		vPortFree(currentTask);
 		currentTask = returnTask;
 	};
 	currentTask->displayUpdate(disp);
+
 	TickType_t previousWakeTime = xTaskGetTickCount();
 	TickType_t displayUpdateTime = xTaskGetTickCount();
 	while(true) {
@@ -207,7 +273,18 @@ void runmanagement::run()
 		if(returnTask != nullptr) {
 			allocateNewTask(returnTask);
 		}
+		//Perform overriding checks
+		for(auto &&element : {opCheck}) {
+			mergeOutput(output, element->update(input));
+			auto returnTask = element->complete(input);
+			if(returnTask != nullptr) {
+				allocateNewTask(returnTask);
+			}
+			element->displayUpdate(disp);
+		}
 		currentTask->displayUpdate(disp);
+
+		makeLogEntries(input, currentTask);
 		
 		processOutput(output);
 		//Print display

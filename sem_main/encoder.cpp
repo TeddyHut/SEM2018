@@ -59,7 +59,7 @@ float tccEncoder::motor_speedConvert(float const interval)
 	//Get the time of the interval in seconds
 	float sec_interval = (interval / config::motor::clockFrequency);
 	//Lower interval = more gears per second.
-	if(sec_interval >= 1 || sec_interval == 0)
+	if(sec_interval >= 1.5 || sec_interval == 0)
 		return 0;
 	return config::hardware::motorteeth / sec_interval;
 }
@@ -232,17 +232,17 @@ void tccEncoder::init()
 	system_gclk_chan_get_config_defaults(&gclk_chan_conf);
 	gclk_chan_conf.source_generator = ::config::encoder::clockSource;
 
-	//Select channel 0, syncronous path, rising edge selection, extint6 generator
+	//Select channel 0, synchronous path, rising edge selection, extint6 generator
 	EVSYS->CHANNEL.reg = (0 << 0) | (0 << 24) | (1 << 26) | (0x12 << 16);
 	system_gclk_chan_set_config(EVSYS_GCLK_ID_0, &gclk_chan_conf);
 	system_gclk_chan_enable(EVSYS_GCLK_ID_0);
 
-	//Select channel 1, syncronous path, rising edge selection, extint7 generator
+	//Select channel 1, synchronous path, rising edge selection, extint7 generator
 	EVSYS->CHANNEL.reg = (1 << 0) | (0 << 24) | (1 << 26) | (0x13 << 16);
 	system_gclk_chan_set_config(EVSYS_GCLK_ID_1, &gclk_chan_conf);
 	system_gclk_chan_enable(EVSYS_GCLK_ID_1);
 
-	//Select channel 0, syncronous path, rising edge selection, extint6 generator
+	//Select channel 0, synchronous path, rising edge selection, extint6 generator
 	EVSYS->CHANNEL.reg = (2 << 0) | (0 << 24) | (1 << 26) | (0x0e << 16);
 	
 	system_gclk_chan_set_config(EVSYS_GCLK_ID_2, &gclk_chan_conf);

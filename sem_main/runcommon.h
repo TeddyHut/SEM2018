@@ -11,14 +11,14 @@
 #include "util.h"
 #include "bms.h"
 
-namespace Run {
+namespace program {
 	enum class TaskIdentity {
 		None = 0,
 		Idle,
-		Pull,
-		DutyCycle,
-		Frequency,
-		Delay,
+		Startup,
+		Coast,
+		CoastRamp,
+		Finished,
 		OPCheck,
 		_size,
 	};
@@ -38,13 +38,19 @@ namespace Run {
 		//Duty cycle (0-1) of motor
 		float motorDutyCycle = 0;
 		//Speed of motor (rotations per second)
-		float motorSpeed = 0;
+		float motorRPS = 0;
 		//The number of 'ticks' (encoder interrupts) the motor has had
 		unsigned int motorTicks = 0;
 		//Current going through motor (A)
 		float motorCurrent = 0;
 		//Total energy usage of motor (W/h)
 		float motorEnergyUsage = 0;
+		//The wheel speed (rotations per second)
+		float wheelRPS = 0;
+		//The number of wheel interrupts
+		unsigned int wheelTicks = 0;
+		//The vehicle speed (in meters per second)
+		float vehicleSpeedMs = 0;
 		//Total energy usage overall (W/h)
 		float totalEnergyUsage = 0;
 		//The total distance covered
@@ -57,7 +63,6 @@ namespace Run {
 		bool logCycle = false;
 		//The number of log samples taken
 		unsigned int samples = 0;
-		//The 
 		//Distance covered since starting
 		float startDistance = 0;
 		//Time since starting

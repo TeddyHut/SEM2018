@@ -14,7 +14,7 @@
 #include <cmath>
 #include <type_traits>
 
-using namespace Run;
+using namespace program;
 
 template <typename T>
 constexpr bool withinError(T const value, T const target, T const error) {
@@ -26,25 +26,32 @@ void setoutputDefaults(Output &out) {
 	out.output[Output::Element::MotorDutyCycle] = true;
 }
 
-void Run::Task::displayUpdate(Display &disp)
+void program::init()
 {
+	
 }
 
- Run::Task::Task(TaskIdentity const id /*= TaskIdentity::None*/) : id(id) {}
+void program::Task::displayUpdate(Display &disp) {}
+program::Task::Task(TaskIdentity const id /*= TaskIdentity::None*/) : id(id) {}
 
- Run::Idle::Idle(bool const countdown) : Task(TaskIdentity::Idle), doCountdown(countdown) {}
-
-Run::Output Run::Idle::update(Input const &input)
+program::Idle::Idle(bool const countdown) : Task(TaskIdentity::Idle), doCountdown(countdown) {}
+program::Output program::Idle::update(Input const &input)
 {
 	Output out;
 	out.motorDutyCycle = 0;
-	out.output[Output::Element::MotorDutyCycle] = true;
+	
 	out.started = false;
+
+	if(runtime::usbmsc->isReady()) {
+		out.motorPWMFrequency = runtime::usbmsc->settings.motorFrequency;
+		out.output[Output::Element::MotorPWMFrequency] = true;
+	}
+
+	out.output[Output::Element::MotorDutyCycle] = true;
 	out.output[Output::Element::Started] = true;
 	return out;
 }
-
-Run::Task *Run::Idle::complete(Input const &input)
+program::Task *program::Idle::complete(Input const &input)
 {
 	if(runtime::usbmsc->isReady()) {
 		//Button has just been pressed
@@ -61,11 +68,11 @@ Run::Task *Run::Idle::complete(Input const &input)
 			//One second has passed since last countdown
 			if(xTaskGetTickCount() - lastCount >= msToTicks(1000)) {
 				//Register a quick beep
-				//runtime::vbBuzzermanager->registerSequence([](Buzzer &b) {
-				//	b.setState(true);
-				//	vTaskDelay(200);
-				//	b.setState(false);
-				//});
+				runtime::vbBuzzermanager->registerSequence([](Buzzer &b) {
+					b.setState(true);
+					vTaskDelay(200);
+					b.setState(false);
+				});
 				lastCount = xTaskGetTickCount();
 				countdown--;
 			}
@@ -77,34 +84,33 @@ Run::Task *Run::Idle::complete(Input const &input)
 		countdown = -1;
 	//If countdown has finished, move onto next state
 	if(countdown == 0) {
-		switch(runtime::usbmsc->settings.testtype) {
-		case USBMSC::Settings::TestType::DutyCycle:
-			return new (pvPortMalloc(sizeof(Run::DutyCycle))) Run::DutyCycle;
-		case USBMSC::Settings::TestType::Frequency:
-			return new (pvPortMalloc(sizeof(Run::Frequency))) Run::Frequency;
-		default:
-			return nullptr;
-		}
+		return new (pvPortMalloc(sizeof(Startup))) Startup(input);
 	}
 	previousOPState = input.opState;
 	return nullptr;
 }
-
-void Run::Idle::displayUpdate(Display &disp)
+void program::Idle::displayUpdate(Display &disp)
 {
 	enum class Alloc {
 		None,
 		Idle,
 		USSB,
+		Settings,
 	} alloc = Alloc::None;
-
+	
+	//If first cycle, USB won't have been registered yet, so set display to "Connect USB"
 	if(!disp.topline)
 		alloc = Alloc::USSB;
 	else {
+		//If the button is held (as in the countdown is happening), change the display to show the countdown
 		if(countdown != -1 && disp.topline->id != DisplayLine::ID::Idle)
 			alloc = Alloc::Idle;
-		else if(countdown == -1 && disp.topline->id != DisplayLine::ID::USSB)
+		//If the USB hasn't been connected
+		else if(countdown == -1 && !runtime::usbmsc->isReady() && disp.topline->id != DisplayLine::ID::USSB)
 			alloc = Alloc::USSB;
+		//If the USB has been connected, show settings
+		else if(countdown == -1 && runtime::usbmsc->isReady() && disp.topline->id != DisplayLine::ID::Settings)
+			alloc = Alloc::Settings;
 	}
 	
 	switch(alloc) {
@@ -116,229 +122,238 @@ void Run::Idle::displayUpdate(Display &disp)
 	case Alloc::USSB:
 		disp.topline.reset(new (pvPortMalloc(sizeof(DL_USB))) DL_USB);
 		break;
+	case Alloc::Settings:
+		disp.topline.reset(new (pvPortMalloc(sizeof(DL_Settings))) DL_Settings);
 	}
 
-	enum class BottomAlloc {
-		None,
-		Settings,
-		Battery,
-	} bottomAlloc = BottomAlloc::None;
+	//Always show the battery statistics on the bottom line
 	if(!disp.bottomline)
-		bottomAlloc = BottomAlloc::Battery;
-	else {
-		if(runtime::usbmsc->settings.testtype == USBMSC::Settings::TestType::None && disp.bottomline->id != DisplayLine::ID::Battery)
-			bottomAlloc = BottomAlloc::Battery;
-		else if(runtime::usbmsc->settings.testtype != USBMSC::Settings::TestType::None && disp.bottomline->id != DisplayLine::ID::Settings)
-			bottomAlloc = BottomAlloc::Settings;
-	}
-
-	switch(bottomAlloc) {
-	default:
-		break;
-	case BottomAlloc::Settings:
-		disp.bottomline.reset(new (pvPortMalloc(sizeof(DL_Settings))) DL_Settings);
-		break;
-	case BottomAlloc::Battery:
-		disp.bottomline.reset(new (pvPortMalloc(sizeof(DL_Battery))) DL_Battery);
-		break;
-	}
+		disp.bottomline.reset(new (pvPortMalloc(sizeof(DL_Battery))) DL_Battery);	
 }
 
-void Run::init()
+
+program::Startup::Startup(Input const &input) : Task(TaskIdentity::Startup)
 {
+	char str[196];
+	//Write settings to log file
+	rpl_snprintf(str, sizeof str, "SampleFrequency,%5.2f,\nMotorFrequency,%5.0f,\nStartRampTime,%4.1f,\nCoastRampTime,%4.1f,\n",
+		runtime::usbmsc->settings.sampleFrequency,
+		runtime::usbmsc->settings.motorFrequency,
+		runtime::usbmsc->settings.startupramptime,
+		runtime::usbmsc->settings.coastramptime
+		);
+	f_puts(str, &runtime::usbmsc->file);
+	f_sync(&runtime::usbmsc->file);
 	
+	rpl_snprintf(str, sizeof str, "CruiseMin(kmh-ms),%3.1f,%4.2f,\nCruiseMax(kmh-ms),%3.1f,%4.2f,\n",
+		runtime::usbmsc->settings.cruiseMin, kmhToMs(runtime::usbmsc->settings.cruiseMin),
+		runtime::usbmsc->settings.cruiseMax, kmhToMs(runtime::usbmsc->settings.cruiseMax));
+	f_puts(str, &runtime::usbmsc->file);
+	f_sync(&runtime::usbmsc->file);
+
+	//Write cell voltages (battery 0) to log file
+	rpl_snprintf(str, sizeof str, "Cells0 [0-5],%4.2f,%4.2f,%4.2f,%4.2f,%4.2f,%4.2f,\n",
+		input.bms0data.cellVoltage[0],
+		input.bms0data.cellVoltage[1],
+		input.bms0data.cellVoltage[2],
+		input.bms0data.cellVoltage[3],
+		input.bms0data.cellVoltage[4],
+		input.bms0data.cellVoltage[5]
+		);
+	f_puts(str, &runtime::usbmsc->file);
+	f_sync(&runtime::usbmsc->file);
+
+	//Write cell voltages (battery 1) to log file
+	rpl_snprintf(str, sizeof str, "Cells1 [0-5],%4.2f,%4.2f,%4.2f,%4.2f,%4.2f,%4.2f,\n",
+		input.bms1data.cellVoltage[0],
+		input.bms1data.cellVoltage[1],
+		input.bms1data.cellVoltage[2],
+		input.bms1data.cellVoltage[3],
+		input.bms1data.cellVoltage[4],
+		input.bms1data.cellVoltage[5]
+		);
+	f_puts(str, &runtime::usbmsc->file);
+	f_sync(&runtime::usbmsc->file);
+
+	//Write battery temperature to log file
+	rpl_snprintf(str, sizeof str, "BatteryTemps [0-1],%4.1f,%4.1f,\n",
+		input.bms0data.temperature, input.bms1data.temperature);
+
+	f_puts("Sample,Time(s),Mode,Current(A),Battery0(V),Battery1(V),Temp0(C),Temp1(C),Power(W),Energy(J),DutyCycle,Velocity(ms),Distance(m),OP,\n", &runtime::usbmsc->file);
+	f_sync(&runtime::usbmsc->file);
+
+	f.startup(0, 1, input.time, input.time + runtime::usbmsc->settings.startupramptime);
+	//Run 3 quick beeps when ramping (for whatever reason, for starting 4 sounds like 3)
+	runtime::vbBuzzermanager->registerSequence([](Buzzer &buz) {
+		for(unsigned int i = 0; i < 4; i++) {
+			buz.setState(true);
+			vTaskDelay(msToTicks(75));
+			buz.setState(false);
+			vTaskDelay(msToTicks(50));
+		}
+	});
 }
-
- Run::Pull::Pull() : Task(TaskIdentity::Pull) {}
-
-Run::Output Run::Pull::update(Input const &input)
+program::Output program::Startup::update(Input const &input)
 {
 	Output out;
+	out.motorDutyCycle = f.currentValue(input.time);
+	
 	out.started = true;
-	out.output[Output::Element::Started] = true;
-	out.motorDutyCycle = runtime::usbmsc->settings.dutyCycle[0];
-	out.output[Output::Element::MotorDutyCycle] = true;
 
+	out.output.set(Output::Element::Started);
+	out.output.set(Output::Element::MotorDutyCycle);
 	return out;
 }
-
-Run::Task * Run::Pull::complete(Input const &input)
+program::Task * program::Startup::complete(Input const &input)
 {
+	if(input.vehicleSpeedMs >= kmhToMs(runtime::usbmsc->settings.cruiseMax))
+		return new (pvPortMalloc(sizeof(Coast))) Coast;
 	return nullptr;
 }
-
-void Run::Pull::displayUpdate(Display &disp)
+void program::Startup::displayUpdate(Display &disp)
 {
-
+	if(disp.topline->id != DisplayLine::ID::SpeedEnergy)
+		disp.topline.reset(new (pvPortMalloc(sizeof(DL_SpeedEnergy))) DL_SpeedEnergy);
+	if(disp.bottomline->id != DisplayLine::ID::Ramping)
+		disp.bottomline.reset(new (pvPortMalloc(sizeof(DL_Ramping))) DL_Ramping);
 }
 
- Run::DutyCycle::DutyCycle() : Task(TaskIdentity::DutyCycle)
-{
-	//Create a linear function
-	f1.startup(
-		runtime::usbmsc->settings.dutyCycle[0], runtime::usbmsc->settings.dutyCycle[1],
-		0, runtime::usbmsc->settings.dutyCycleDivisions);
-	char str[196];
-	rpl_snprintf(str, sizeof str, "DutyCycle,\nVoltage,%f,Q-Current,%f,\nFrequency,%f,Hz,\nRange,%f,%f,\nDivisions,%u,\nDiv Time,%f,\n",
-		runtime::bms0->get_data().voltage + runtime::bms1->get_data().voltage,
-		std::max(std::max(runtime::bms0->get_data().current, 0.0f), std::max(runtime::bms1->get_data().current, 0.0f)),
-		runtime::usbmsc->settings.frequency[0],
-		runtime::usbmsc->settings.dutyCycle[0], runtime::usbmsc->settings.dutyCycle[1],
-		runtime::usbmsc->settings.dutyCycleDivisions,
-		runtime::usbmsc->settings.holdTime);
-	f_puts(str, &runtime::usbmsc->file);
-	f_puts("Sample,Time,DutyCycle,Speed,Ticks,Current\n", &runtime::usbmsc->file);
-	f_sync(&runtime::usbmsc->file);
+
+program::Coast::Coast() : Task(TaskIdentity::Coast) {
+	//Run 2 quick beeps when coasting
+	runtime::vbBuzzermanager->registerSequence([](Buzzer &buz) {
+		for(unsigned int i = 0; i < 2; i++) {
+			buz.setState(true);
+			vTaskDelay(msToTicks(75));
+			buz.setState(false);
+			vTaskDelay(msToTicks(50));
+		}
+	});
 }
 
-Run::Output Run::DutyCycle::update(Input const &input)
+program::Output program::Coast::update(Input const &input)
 {
-	Output out;
-	if(!initialised) {
-		initialised = true;
-		lastStageTime = input.time;
-		out.started = true;
-		out.output[Output::Element::Started] = true;
-		out.motorPWMFrequency = runtime::usbmsc->settings.frequency[0];
-		out.output[Output::Element::MotorPWMFrequency] = true;
-		out.output[Output::Element::MotorDutyCycle] = true;
-	}
-	out.motorDutyCycle = f1(stage);
-	if(input.time >= (lastStageTime + runtime::usbmsc->settings.holdTime)) {
-		lastStageTime = input.time;
-		stage++;	
-		out.output[Output::Element::MotorDutyCycle] = true;
-	}
-	if(input.logCycle) {
-		char str[64];
-		rpl_snprintf(str, sizeof str, "%u,%5f,%5f,%5f,%u,%5f,\n",
-			input.samples,
-			input.startTime,
-			out.motorDutyCycle,
-			input.motorSpeed,
-			input.motorTicks,
-			std::max(std::max(input.bms0data.current, 0.0f), std::max(input.bms1data.current, 0.0f)));
-		f_puts(str, &runtime::usbmsc->file);
-	}
-	return out;
-}
-
-Run::Task * Run::DutyCycle::complete(Input const &input)
-{
-	if((stage - 1) > f1.get_time_destination()) {
-		f_sync(&runtime::usbmsc->file);
-		return new (pvPortMalloc(sizeof(Run::Delay))) Run::Delay;
-	}
-	return nullptr;
-}
-
-void Run::DutyCycle::displayUpdate(Display &disp)
-{
-	if(disp.topline->id != DisplayLine::ID::Samples)
-		disp.topline.reset(new (pvPortMalloc(sizeof(DL_Samples))) DL_Samples);
-	if(disp.bottomline->id != DisplayLine::ID::DutyCycle)
-		disp.bottomline.reset(new (pvPortMalloc(sizeof(DL_DutyCycle))) DL_DutyCycle);
-}
-
- Run::Frequency::Frequency() : Task(TaskIdentity::Frequency)
-{
-	f1.startup(
-		runtime::usbmsc->settings.frequency[0], runtime::usbmsc->settings.frequency[1],
-		0, runtime::usbmsc->settings.frequencyDivisions);
-	char str[196];
-	rpl_snprintf(str, sizeof str, "Frequency,\nVoltage,%f,Q-Current,%f,\nDutyCycle,%f,%%,\nRange,%f,%f,\nDivisions,%u,\nDiv Time,%f,\n",
-		runtime::bms0->get_data().voltage + runtime::bms1->get_data().voltage,
-		std::max(std::max(runtime::bms0->get_data().current, 0.0f), std::max(runtime::bms1->get_data().current, 0.0f)),
-		runtime::usbmsc->settings.dutyCycle[0],
-		runtime::usbmsc->settings.frequency[0], runtime::usbmsc->settings.frequency[1],
-		runtime::usbmsc->settings.frequencyDivisions,
-		runtime::usbmsc->settings.holdTime);
-	f_puts(str, &runtime::usbmsc->file);
-	f_puts("Sample,Time,Frequency,Speed,Ticks,Current\n", &runtime::usbmsc->file);
-	f_sync(&runtime::usbmsc->file);
-}
-
-Run::Output Run::Frequency::update(Input const &input)
-{
-	Output out;
-	if(!initialised) {
-		initialised = true;
-		lastStageTime = input.time;
-		out.started = true;
-		out.output[Output::Element::Started] = true;
-		out.motorDutyCycle = runtime::usbmsc->settings.dutyCycle[0];
-		out.output[Output::Element::MotorDutyCycle] = true;
-		out.output[Output::Element::MotorPWMFrequency] = true;
-	}
-	out.motorPWMFrequency = f1(stage);
-	if(input.time >= (lastStageTime + runtime::usbmsc->settings.holdTime)) {
-		lastStageTime = input.time;
-		stage++;
-		out.output[Output::Element::MotorPWMFrequency] = true;
-	}
-	if(input.logCycle) {
-		char str[64];
-		rpl_snprintf(str, sizeof str, "%u,%5f,%5f,%5f,%u,%5f,\n",
-		input.samples,
-		input.startTime,
-		out.motorPWMFrequency,
-		input.motorSpeed,
-		input.motorTicks,
-		std::max(std::max(input.bms0data.current, 0.0f), std::max(input.bms1data.current, 0.0f)));
-		f_puts(str, &runtime::usbmsc->file);
-	}
-	return out;
-}
-
-Run::Task * Run::Frequency::complete(Input const &input)
-{
-	if((stage - 1) > f1.get_time_destination()) {
-		f_sync(&runtime::usbmsc->file);
-		return new (pvPortMalloc(sizeof(Run::Delay))) Run::Delay;
-	}
-	return nullptr;
-}
-
-void Run::Frequency::displayUpdate(Display &disp)
-{
-	if(disp.topline->id != DisplayLine::ID::Samples)
-		disp.topline.reset(new (pvPortMalloc(sizeof(DL_Samples))) DL_Samples);
-	if(disp.bottomline->id != DisplayLine::ID::DutyCycle)
-		disp.bottomline.reset(new (pvPortMalloc(sizeof(DL_Frequency))) DL_Frequency);
-}
-
- Run::Delay::Delay() : Task(TaskIdentity::Delay) {
-	//Load the next settings file
-	runtime::usbmsc->reload(USBMSC::RELOAD_NEXT);
- }
-
-Run::Output Run::Delay::update(Input const &input)
-{
-	if(!initialised) {
-		startTime = input.time;
-		initialised = true;
-	}
 	Output out;
 	out.motorDutyCycle = 0;
 	out.output[Output::Element::MotorDutyCycle] = true;
-	out.started = false;
-	out.output[Output::Element::Started] = true;
+	return out;
+}
+program::Task * program::Coast::complete(Input const &input)
+{
+	if(input.vehicleSpeedMs <= kmhToMs(runtime::usbmsc->settings.cruiseMin))
+		return new (pvPortMalloc(sizeof(CoastRamp))) CoastRamp(input);
+	return nullptr;
+}
+void program::Coast::displayUpdate(Display &disp)
+{
+	if(disp.topline->id != DisplayLine::ID::SpeedEnergy)
+		disp.topline.reset(new (pvPortMalloc(sizeof(DL_SpeedEnergy))) DL_SpeedEnergy);
+	if(disp.bottomline->id != DisplayLine::ID::Coasting)
+		disp.bottomline.reset(new (pvPortMalloc(sizeof(DL_Coasting))) DL_Coasting);
+}
+
+
+program::CoastRamp::CoastRamp(Input const &input) : Task(TaskIdentity::CoastRamp)
+{
+	//Run 3 quick beeps when ramping
+	runtime::vbBuzzermanager->registerSequence([](Buzzer &buz) {
+		for(unsigned int i = 0; i < 3; i++) {
+			buz.setState(true);
+			vTaskDelay(msToTicks(75));
+			buz.setState(false);
+			vTaskDelay(msToTicks(50));
+		}
+	});
+	f.startup(0, 1, input.time, input.time + config::run::coastramptime);
+}
+program::Output program::CoastRamp::update(Input const &input)
+{
+	Output out;
+	out.motorDutyCycle = f.currentValue(input.time);
+	
+	out.output[Output::Element::MotorDutyCycle] = true;
 	return out;
 }
 
-Run::Task * Run::Delay::complete(Input const &input)
+program::Task * program::CoastRamp::complete(Input const &input)
 {
-	if(input.time - startTime >= config::run::testRestTime)
-		return new (pvPortMalloc(sizeof(Run::Idle))) Run::Idle(false);
+	if(input.vehicleSpeedMs >= kmhToMs(runtime::usbmsc->settings.cruiseMax))
+		return new (pvPortMalloc(sizeof(Coast))) Coast;
 	return nullptr;
 }
 
-void Run::Delay::displayUpdate(Display &disp)
+void program::CoastRamp::displayUpdate(Display &disp)
 {
-	if(initialised) {
-		if(disp.topline->id != DisplayLine::ID::Delay)
-			disp.topline.reset(new (pvPortMalloc(sizeof(DL_Delay))) DL_Delay(startTime + config::run::testRestTime));
-		if(disp.bottomline->id != DisplayLine::ID::Battery)
-			disp.bottomline.reset(new (pvPortMalloc(sizeof(DL_Battery))) DL_Battery);
-	}	
+	if(disp.topline->id != DisplayLine::ID::SpeedEnergy)
+		disp.topline.reset(new (pvPortMalloc(sizeof(DL_SpeedEnergy))) DL_SpeedEnergy);
+	if(disp.bottomline->id != DisplayLine::ID::Coasting)
+		disp.bottomline.reset(new (pvPortMalloc(sizeof(DL_Ramping))) DL_Ramping);
+}
+
+
+program::OPCheck::OPCheck() : Task(TaskIdentity::OPCheck)
+{
+	if((sem_buzzerComplete = xSemaphoreCreateBinary()) == NULL)
+		debugbreak();
+}
+program::Output program::OPCheck::update(Input const &input)
+{
+	Output out;
+	if(input.started && !finished) {
+		auto buzzerSequence = [](Buzzer &buz) {
+			buz.start();
+			vTaskDelay(msToTicks(500));
+			buz.stop();
+			vTaskDelay(msToTicks(500));
+		};
+		//If the user just released the button, start a timeout
+		if(input.opState == false && previousOPState == true)
+			errorTime = input.time;
+		//Give the semaphore if the buzzer isn't in the queue and the user just released the button
+		if((input.opState == false) && (previousOPState == true) && !buzzerInQueue)
+			xSemaphoreGive(sem_buzzerComplete);
+		if(xSemaphoreTake(sem_buzzerComplete, 0) == pdTRUE) {
+			if(input.opState == false) {
+				runtime::vbBuzzermanager->registerSequence(buzzerSequence, sem_buzzerComplete);
+				buzzerInQueue = true;
+			}
+			else
+				buzzerInQueue = false;
+		}
+		if(input.opState == false) {
+			setoutputDefaults(out);
+		}
+	}
+	previousOPState = input.opState;
+	return out;
+}
+program::Task * program::OPCheck::complete(Input const &input)
+{
+	if((!input.opState) && ((input.time) - errorTime >= config::run::stoptimeout) && input.started && !finished) {
+		finished = true;
+		return new(pvPortMalloc(sizeof(Finished))) Finished(input.startTime, input.totalEnergyUsage, input.startDistance);
+	}
+	return nullptr;
+}
+
+
+program::Finished::Finished(float const time, float const energy, float const distance) : Task(TaskIdentity::Finished), time(time), energy(energy), distance(distance) {
+	f_close(&runtime::usbmsc->file);
+}
+program::Output program::Finished::update(Input const &input)
+{
+	Output out;
+	setoutputDefaults(out);
+	return out;
+}
+program::Task * program::Finished::complete(Input const &input)
+{
+	return nullptr;
+}
+void program::Finished::displayUpdate(Display &disp)
+{
+	if(disp.topline->id != DisplayLine::ID::Finished)
+		disp.topline.reset(new (pvPortMalloc(sizeof(DL_Finished))) DL_Finished(time, energy, distance));
+	if(disp.bottomline->id != DisplayLine::ID::Battery)
+		disp.bottomline.reset(new (pvPortMalloc(sizeof(DL_Battery))) DL_Battery);
 }

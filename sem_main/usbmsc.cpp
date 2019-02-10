@@ -77,7 +77,6 @@ void USBMSC::task_main()
 		while(true) {
 			vTaskDelay(msToTicks(100));
 			if(wakeCause != WakeCause::None) {
-				settings.testtype = Settings::TestType::None;
 				iserror = false;
 				ready = false;
 				if (wakeCause == WakeCause::Disconnected) {
@@ -121,25 +120,18 @@ void USBMSC::task_main()
 			continue;
 		}
 
-		//Read strings
+		//Read strings from settings file
 		constexpr size_t strlen = 16;
-		char testtype[strlen];
-		
-		char holdTime[strlen];
-		char springConstant[strlen];
-		
-		char dutyCycleMin[strlen];
-		char dutyCycleMax[strlen];
-		char dutyCycleDivisions[strlen];
-
-		char frequencyMin[strlen];
-		char frequencyMax[strlen];
-		char frequencyDivisions[strlen];
+		char sampleFrequency[strlen];
+		char motorFrequency[strlen];
+		char startupramptime[strlen];
+		char coastramptime[strlen];
+		char cruiseMin[strlen];
+		char cruiseMax[strlen];
 
 		bool getserror = false;
-		for(auto str : {testtype, holdTime, springConstant,
-				dutyCycleMin, dutyCycleMax, dutyCycleDivisions,
-				frequencyMin, frequencyMax, frequencyDivisions}) {
+		for(auto str : {sampleFrequency, motorFrequency, startupramptime,
+				coastramptime, cruiseMin, cruiseMax}) {
 			if(nullptr == f_gets(str, strlen, &settingsFile)) {
 				getserror = true;
 				break;
@@ -159,26 +151,12 @@ void USBMSC::task_main()
 		}
 
 		//Fill out settings struct
-		if(std::strcmp(testtype, "Torque\n") == 0)
-			settings.testtype = Settings::TestType::Torque;
-		else if(std::strcmp(testtype, "DutyCycle\n") == 0)
-			settings.testtype = Settings::TestType::DutyCycle;
-		else if(std::strcmp(testtype, "Frequency\n") == 0)
-			settings.testtype = Settings::TestType::Frequency;
-		else
-			settings.testtype = Settings::TestType::None;
-
-		settings.holdTime = std::strtof(holdTime, nullptr);
-		settings.springConstant = std::strtof(springConstant, nullptr);
-
-		settings.dutyCycle[0] = std::strtof(dutyCycleMin, nullptr);
-		settings.dutyCycle[1] = std::strtof(dutyCycleMax, nullptr);
-		settings.dutyCycleDivisions = std::atoi(dutyCycleDivisions);
-
-		settings.frequency[0] = std::strtof(frequencyMin, nullptr);
-		settings.frequency[1] = std::strtof(frequencyMax, nullptr);
-		settings.frequencyDivisions = std::atoi(frequencyDivisions);
-
+		settings.sampleFrequency = std::strtof(sampleFrequency, nullptr);
+		settings.motorFrequency = std::strtof(motorFrequency, nullptr);
+		settings.startupramptime = std::strtof(startupramptime, nullptr);
+		settings.coastramptime = std::strtof(coastramptime, nullptr);
+		settings.cruiseMin = std::strtof(cruiseMin, nullptr);
+		settings.cruiseMax = std::strtof(cruiseMax, nullptr);
 
 		//Keep attempting to open logNN files until we find a new one
 		for(unsigned int index = 0; true; index++) {

@@ -17,24 +17,41 @@ constexpr T enumCycle(T const v) {
 	return next;
 }
 
-Run::TimerUpdate::TimerUpdate(TickType_t const period /*= config::run::displaycycleperiod*/)
+void program::Display::printDisplay(Input const &input) const
+{
+	char str[17];
+	char str2[sizeof str];
+	memset(str, 0, 17);
+	runtime::viewerboard->setPosition(0);
+	topline->get_text(str, input);
+	rpl_snprintf(str2, sizeof str2, "%-16s", str);
+	runtime::viewerboard->writeText(str2, 16);
+	memset(str, 0, 17);
+	runtime::viewerboard->setPosition(40);
+	bottomline->get_text(str, input);
+	rpl_snprintf(str2, sizeof str2, "%-16s", str);
+	runtime::viewerboard->writeText(str2, 16);
+	runtime::viewerboard->send();
+}
+
+program::TimerUpdate::TimerUpdate(TickType_t const period /*= config::run::displaycycleperiod*/)
 {
 	if((timer = xTimerCreate("line", period, pdTRUE, this, callback)) == NULL)
-	debugbreak();
+		debugbreak();
 	xTimerStart(timer, portMAX_DELAY);
 }
 
-Run::TimerUpdate::~TimerUpdate()
+program::TimerUpdate::~TimerUpdate()
 {
 	if(timer != NULL)
-	xTimerDelete(timer, portMAX_DELAY);
+		xTimerDelete(timer, portMAX_DELAY);
 }
 
- Run::DL_Idle_Top::DL_Idle_Top(int const &countdown) : DisplayLine(ID::Idle), countdown(countdown)
-{
-}
+program::DisplayLine::DisplayLine(ID const id /*= ID::None*/) : id(id) {}
 
-void Run::DL_Idle_Top::get_text(char str[], Input const &input)
+
+program::DL_Idle_Top::DL_Idle_Top(int const &countdown) : DisplayLine(ID::Idle), countdown(countdown) {}
+void program::DL_Idle_Top::get_text(char str[], Input const &input)
 {
 	if(countdown == -1)
 		strcpy(str, "     Ready      ");
@@ -42,12 +59,14 @@ void Run::DL_Idle_Top::get_text(char str[], Input const &input)
 		rpl_snprintf(str, 17, "Starting in:   %i.1", countdown);
 }
 
-void Run::TimerUpdate::callback(TimerHandle_t timer)
+void program::TimerUpdate::callback(TimerHandle_t timer)
 {
 	static_cast<TimerUpdate *>(pvTimerGetTimerID(timer))->cycle();
 }
 
-void Run::DL_Battery::get_text(char str[], Input const &input)
+
+program::DL_Battery::DL_Battery() : DisplayLine(ID::Battery) {}
+void program::DL_Battery::get_text(char str[], Input const &input)
 {
 	switch(curcycle) {
 	case Cycle::Current:
@@ -65,36 +84,34 @@ void Run::DL_Battery::get_text(char str[], Input const &input)
 		break;
 	}
 }
-
- Run::DL_Battery::DL_Battery() : DisplayLine(ID::Battery) {}
-
-void Run::DL_Battery::cycle()
+void program::DL_Battery::cycle()
 {
 	curcycle = enumCycle(curcycle);
 }
 
-void Run::DL_SpeedEnergy::get_text(char str[], Input const &input)
+
+program::DL_SpeedEnergy::DL_SpeedEnergy() : DisplayLine(ID::SpeedEnergy) {}
+void program::DL_SpeedEnergy::get_text(char str[], Input const &input)
 {
 	switch(curcycle) {
-		case Cycle::SpeedEnergy:
-		//rpl_snprintf(str, 17, "%#5.2fkmh %#5.2fWh", msToKmh(input.vehicleSpeed), input.totalEnergyUsage);
+	case Cycle::SpeedEnergy:
+		rpl_snprintf(str, 17, "%#5.2fkmh %#5.2fWh", msToKmh(input.vehicleSpeedMs), input.totalEnergyUsage);
 		break;
-		case Cycle::Time:
-		rpl_snprintf(str, 17, "Time:      %02u:%02u", static_cast<unsigned int>(input.startTime) / 60, static_cast<unsigned int>(input.startTime) % 60);
+	case Cycle::Time:
+		rpl_snprintf(str, 17, "Runtime:   %02u:%02u", static_cast<unsigned int>(input.startTime) / 60, static_cast<unsigned int>(input.startTime) % 60);
 		break;
-		case Cycle::_size:
+	case Cycle::_size:
 		break;
 	}
 }
-
-void Run::DL_SpeedEnergy::cycle()
+void program::DL_SpeedEnergy::cycle()
 {
 	curcycle = enumCycle(curcycle);
 }
 
-Run::DL_Finished::DL_Finished(float const time, float const energy, float const distance) : TimerUpdate(), time(time), energy(energy), distance(distance) {}
 
-void Run::DL_Finished::get_text(char str[], Input const &input)
+program::DL_Finished::DL_Finished(float const time, float const energy, float const distance) : DisplayLine(ID::Finished), time(time), energy(energy), distance(distance) {}
+void program::DL_Finished::get_text(char str[], Input const &input)
 {
 	switch(curCycle) {
 	case Cycle::Finished:
@@ -113,106 +130,103 @@ void Run::DL_Finished::get_text(char str[], Input const &input)
 		break;
 	}
 }
-
-void Run::DL_Finished::cycle()
+void program::DL_Finished::cycle()
 {
 	curCycle = enumCycle(curCycle);
 }
 
-void Run::Display::printDisplay(Input const &input) const
-{
-	char str[17];
-	char str2[sizeof str];
-	memset(str, 0, 17);
-	runtime::viewerboard->setPosition(0);
-	topline->get_text(str, input);
-	rpl_snprintf(str2, sizeof str2, "%-16s", str);
-	runtime::viewerboard->writeText(str2, 16);
-	memset(str, 0, 17);
-	runtime::viewerboard->setPosition(40);
-	bottomline->get_text(str, input);
-	rpl_snprintf(str2, sizeof str2, "%-16s", str);
-	runtime::viewerboard->writeText(str2, 16);
-	runtime::viewerboard->send();
-}
 
-void Run::DL_USB::get_text(char str[], Input const &input)
+program::DL_USB::DL_USB() : DisplayLine(ID::USSB) {}
+void program::DL_USB::get_text(char str[], Input const &input)
 {
-	//IF there is a USB error, show that
+	//If there is a USB error, show that
 	if(runtime::usbmsc->isError()) {
 		rpl_snprintf(str, 17, "%-16s", runtime::usbmsc->lastError());
 	}
-	else if(runtime::usbmsc->isReady()) {
-		rpl_snprintf(str, 17, "File: %10s", runtime::usbmsc->name());
-	}
+	//If USB hasn't been connected yet, show "Connect USB"
 	else {
 		rpl_snprintf(str, 17, "Connect USB");
 	}
 }
 
-Run::DL_USB::DL_USB() : DisplayLine(ID::USSB) {}
 
-void Run::DL_Settings::get_text(char str[], Input const &input)
+program::DL_Settings::DL_Settings() : DisplayLine(ID::Settings), TimerUpdate(msToTicks(1500)) {}
+void program::DL_Settings::get_text(char str[], Input const &input)
 {
-	switch(runtime::usbmsc->settings.testtype) {
-	default:
-		rpl_snprintf(str, 17, "Unknown test");
+	switch(curcycle) {
+	case Cycle::File:
+		rpl_snprintf(str, 17, "File: %10s", runtime::usbmsc->name());
 		break;
-	case USBMSC::Settings::TestType::Torque:
-		rpl_snprintf(str, 17, "%02u%% %#7.4f N/m", static_cast<unsigned int>(runtime::usbmsc->settings.dutyCycle[0] * 100),
-			runtime::usbmsc->settings.springConstant);
+	case Cycle::Speeds:
+		rpl_snprintf(str, 17, "Low %3.1f Hi %3.1f", runtime::usbmsc->settings.cruiseMin, runtime::usbmsc->settings.cruiseMax);
 		break;
-	case USBMSC::Settings::TestType::DutyCycle:
-		rpl_snprintf(str, 17, "%3u%% %3u%% %u",
-			static_cast<unsigned int>(runtime::usbmsc->settings.dutyCycle[0] * 100),
-			static_cast<unsigned int>(runtime::usbmsc->settings.dutyCycle[1] * 100),
-			runtime::usbmsc->settings.dutyCycleDivisions);
+	case Cycle::Times:
+		rpl_snprintf(str, 17, "St %3.0fs Cst %3.0fs", runtime::usbmsc->settings.startupramptime, runtime::usbmsc->settings.coastramptime);
 		break;
-	case USBMSC::Settings::TestType::Frequency:
-		rpl_snprintf(str, 17, "%04f %04f %u",
-			runtime::usbmsc->settings.frequency[0],
-			runtime::usbmsc->settings.frequency[1],
-			runtime::usbmsc->settings.frequencyDivisions);
+	case Cycle::PWMFrequency:
+		rpl_snprintf(str, 17, "PWMFreq: %5.0fHz", runtime::usbmsc->settings.motorFrequency);
+		break;
+	case Cycle::SampleFrequency:
+		rpl_snprintf(str, 17, "SplFreq: %5.2fHz", runtime::usbmsc->settings.sampleFrequency);
+		break;
+	case Cycle::_size:
 		break;
 	}
 }
-
-Run::DL_Settings::DL_Settings() : DisplayLine(ID::Settings) {}
-
-Run::DisplayLine::DisplayLine(ID const id /*= ID::None*/) : id(id) {}
-
-void Run::DL_Samples::get_text(char str[], Input const &input)
+void program::DL_Settings::cycle()
 {
-	rpl_snprintf(str, 17, "Samples: %7u", input.samples);
+	curcycle = enumCycle(curcycle);
 }
 
-Run::DL_Samples::DL_Samples() : DisplayLine(ID::Samples) {}
- 
- void Run::DL_Torque::get_text(char str[], Input const &input)
- {
-	//Binary character should be tau on the HD44780
-	rpl_snprintf(str, 17, "%c: %#10.8f Nm", 0b10010111, torque);
- }
-  
- Run::DL_Torque::DL_Torque(float const &torque) : DisplayLine(ID::Torque), torque(torque) {}
 
-void Run::DL_DutyCycle::get_text(char str[], Input const &input)
+program::DL_Ramping::DL_Ramping() : DisplayLine(ID::Ramping) {}
+void program::DL_Ramping::get_text(char str[], Input const &input)
 {
-	rpl_snprintf(str, 17, "DutyCycle: %#4.1f%%", input.motorDutyCycle * 100.0f);
+	switch(curcycle) {
+		case Cycle::MotorCurrent:
+			rpl_snprintf(str, 17, "Current: %6.2fA", std::max(0.0f, input.bms0data.current));
+			break;
+		case Cycle::DutyCycle:
+			rpl_snprintf(str, 17, "Duty: %9.1f%%", input.motorDutyCycle * 100.0f);
+			break;
+		case Cycle::Rampspeed:
+			rpl_snprintf(str, 17, "MtrRPM: %8.1f", input.motorRPS * 60.0f);
+			break;
+		case Cycle::_size:
+			break;
+	}
+}
+void program::DL_Ramping::cycle()
+{
+	curcycle = enumCycle(curcycle);
 }
 
- Run::DL_DutyCycle::DL_DutyCycle() : DisplayLine(ID::DutyCycle) {}
 
-void Run::DL_Frequency::get_text(char str[], Input const &input)
+program::DL_Coasting::DL_Coasting() : DisplayLine(ID::Coasting) {}
+void program::DL_Coasting::get_text(char str[], Input const &input)
 {
-	rpl_snprintf(str, 17, "Freq: %8fHz", input.motorPWMFrequency);
+	if(firstGetText) {
+		firstGetText = false;
+		starttime = input.time;
+	}
+	switch(curcycle) {
+		case Cycle::BatteryVoltage:
+			rpl_snprintf(str, 17, "BV1 %#4.1f V2 %#4.1f", input.bms0data.voltage, input.bms1data.voltage);
+			break;
+		case Cycle::CoastTime:
+			rpl_snprintf(str, 17, "Coasting:  %2.2u:%2.2u", static_cast<unsigned int>(input.time - starttime) / 60, static_cast<unsigned int>(input.time - starttime) % 60);
+			break;
+		case Cycle::Distance:
+			rpl_snprintf(str, 17, "Distance: %#6.3f", input.startDistance);
+			break;
+		case Cycle::Samples:
+			rpl_snprintf(str, 17, "Samples: %7u", input.samples);
+			break;
+		case Cycle::_size:
+			break;
+	}
 }
-
-Run::DL_Frequency::DL_Frequency() : DisplayLine(ID::Frequency) {}
-
-void Run::DL_Delay::get_text(char str[], Input const &input)
+void program::DL_Coasting::cycle()
 {
-	rpl_snprintf(str, 17, "Wait: %4fs", finishTime - input.time);
+	curcycle = enumCycle(curcycle);
 }
-
- Run::DL_Delay::DL_Delay(float const finishTime) : DisplayLine(ID::Delay), finishTime(finishTime) {}
