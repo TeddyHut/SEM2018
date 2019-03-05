@@ -98,6 +98,7 @@ namespace program {
 	public:
 		Output update(Input const &input) override;
 		Task *complete(Input const &input) override;
+		bool changedProgramState() const;
 		OPCheck();
 	private:
 		SemaphoreHandle_t sem_buzzerComplete;
@@ -105,7 +106,6 @@ namespace program {
 		bool buzzerInQueue = false;
 		bool keepBeeping = true;
 		float errorTime = 0;
-		bool finished = false;
-		
+		bool pm_changedProgramState = false;
 	};
 }

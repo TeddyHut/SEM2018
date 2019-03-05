@@ -117,8 +117,18 @@ void fillInput(Input &input, Output const &prevOutput) {
 	input.logCycle = false;
 
 	//Determine whether device started
-	if(prevOutput.output[Output::Element::Started])
-		input.started = prevOutput.started;
+	if(prevOutput.output[Output::Element::State])
+		input.programstate = prevOutput.programstate;
+
+	//If finished, reset for next time
+	if(input.programstate != Input::State::Running) {
+		logTimeout = 0;
+		syncTimeout = 0;
+		previousStarted = false;
+		input.totalEnergyUsage = 0;
+		input.startDistance = 0;
+		input.startTime = 0;
+	}
 
 	//Get difference in time since last cycle
 	float timeDifference = (rtc_count_get_count(&rtc_instance) / 1024.0f) - input.time;
@@ -129,7 +139,7 @@ void fillInput(Input &input, Output const &prevOutput) {
 	input.distance += distanceDifference;
 
 	//If has started, add calculations to started values
-	if(input.started) {
+	if(input.programstate == Input::State::Running) {
 		//Always log if just started
 		if(previousStarted == false) {
 			previousStarted = true;
@@ -152,7 +162,8 @@ void fillInput(Input &input, Output const &prevOutput) {
 		}
 
 		//Energy in W/s (joules) / 3600 to get W/h
-		input.totalEnergyUsage += (((input.bms0data.current * input.bms0data.voltage) + (input.bms1data.current * input.bms1data.voltage)) * timeDifference) / 3600.0f;
+		//input.totalEnergyUsage += (((input.bms0data.current * input.bms0data.voltage) + (input.bms1data.current * input.bms1data.voltage)) * timeDifference) / 3600.0f;
+		input.totalEnergyUsage += input.calculationCurrent * input.voltage * timeDifference / 3600.0f;
 	}
 	else {
 		input.samples = 0;
@@ -179,6 +190,7 @@ void fillInput(Input &input, Output const &prevOutput) {
 
 	//Sensor calculations
 	input.voltage = input.bms0data.voltage + input.bms1data.voltage;
+	input.calculationCurrent = std::max(input.bms0data.current, 0.0f);
 	input.vehicleSpeedMs = driveIntervalToMs(runtime::encoder0->getAverageInterval());
 }
 
@@ -194,13 +206,13 @@ void mergeOutput(Output &dest, Output const &src) {
 		dest.motorDutyCycle = src.motorDutyCycle;
 	if(src.output[Output::Element::MotorPWMFrequency])
 		dest.motorPWMFrequency = src.motorPWMFrequency;
-	if(src.output[Output::Element::Started])
-		dest.started = src.started;
+	if(src.output[Output::Element::State])
+		dest.programstate = src.programstate;
 	dest.output |= src.output;
 }
 
 void makeLogEntries(Input const &input, Task *const currenttask) {
-	if(input.started && currenttask->id != TaskIdentity::Finished && input.logCycle) {
+	if(input.programstate == Input::State::Running && input.logCycle) {
 		char strmode[16];
 		switch(currenttask->id) {
 		default:
@@ -224,12 +236,12 @@ void makeLogEntries(Input const &input, Task *const currenttask) {
 			input.samples, //Samples
 			input.startTime, //Runtime
 			strmode, //Mode
-			std::max(0.0f, std::min(input.bms0data.current, input.bms1data.current)), //Current
+			input.calculationCurrent, //Current
 			input.bms0data.voltage, //Bat0 voltage
 			input.bms1data.voltage, //Bat1 voltage
 			input.bms0data.temperature, //Bat0 temp
 			input.bms1data.temperature, //Bat1 temp
-			std::max(0.0f, std::min(input.bms0data.current, input.bms1data.current)) * (input.bms0data.voltage + input.bms1data.voltage), //Power (W) (V*I)
+			input.calculationCurrent * (input.bms0data.voltage + input.bms1data.voltage), //Power (W) (V*I)
 			input.totalEnergyUsage * 3600.0f, //Total energy usage is in Wh, convert to J
 			input.motorDutyCycle, //MotorDuty
 			input.vehicleSpeedMs, //Velocity
@@ -250,7 +262,7 @@ void runmanagement::run()
 	Output output;
 
 	Task *currentTask = new (pvPortMalloc(sizeof(Idle))) Idle;
-	Task *opCheck = new (pvPortMalloc(sizeof(OPCheck))) OPCheck;
+	OPCheck *opCheck = new (pvPortMalloc(sizeof(OPCheck))) OPCheck;
 
 	auto allocateNewTask = [&](Task *const returnTask) {
 		currentTask->~Task();
@@ -280,6 +292,17 @@ void runmanagement::run()
 			if(returnTask != nullptr) {
 				allocateNewTask(returnTask);
 			element->displayUpdate(disp);
+			}
+		}
+		if(opCheck->changedProgramState()) {
+			switch(output.programstate) {
+			case Input::State::Idle:
+				break;
+			case Input::State::Running:
+				break;
+			case Input::State::Finished:
+				allocateNewTask(new(pvPortMalloc(sizeof(Finished))) Finished(input.startTime, input.totalEnergyUsage, input.startDistance));
+				break;
 			}
 		}
 		currentTask->displayUpdate(disp);

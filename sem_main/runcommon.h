@@ -24,6 +24,11 @@ namespace program {
 	};
 
 	struct Input {
+		enum class State {
+			Idle,
+			Running,
+			Finished,
+		} programstate = State::Idle;
 		//The currently running task
 		TaskIdentity currentID = TaskIdentity::None;
 		//Time in seconds since start of the operation
@@ -33,6 +38,8 @@ namespace program {
 		BMS::Data bms1data;
 		//Total voltage of both batteries
 		float voltage = 0;
+		//The current to use for calculations
+		float calculationCurrent = 0;
 		//The frequency of the motor
 		float motorPWMFrequency = 0;
 		//Duty cycle (0-1) of motor
@@ -57,8 +64,6 @@ namespace program {
 		float distance = 0;
 		//The state of the operator presence button
 		bool opState = false;
-		//Whether the vehicle has started or not
-		bool started = false;
 		//Whether to log data on this iteration
 		bool logCycle = false;
 		//The number of log samples taken
@@ -76,13 +81,13 @@ namespace program {
 			enum {
 				MotorDutyCycle = 0,
 				MotorPWMFrequency,
-				Started,
+				State,
 				_size,
 			};
 		};
 		float motorDutyCycle;
 		float motorPWMFrequency;
-		bool started = false;
+		Input::State programstate;
 		std::bitset<Element::_size> output;
 	};
 }

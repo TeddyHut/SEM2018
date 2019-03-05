@@ -71,6 +71,7 @@ namespace program {
 			PWMFrequency,
 			SampleFrequency,
 			Wheel,
+			Buffer,
 			_size,
 		} curcycle = Cycle::File;
 	};

@@ -22,7 +22,10 @@ void tcc2_overflow_callback(tcc_module *const module) {
 }
 
 void event_motor0_callback() {
+#if (PATCH_ENCODER0_TO_ENCODER2 == 1)
+#else
 	Encoder0::compare(Encoder0::getCounterValue());
+#endif
 }
 
 void event_motor1_callback() {
@@ -34,7 +37,11 @@ void event_motor1_callback() {
 }
 
 void event_wheel_callback() {
+#if (PATCH_ENCODER0_TO_ENCODER2 == 1)
+	Encoder0::compare(Encoder0::getCounterValue());
+#else
 	Encoder2::compare(Encoder2::getCounterValue());
+#endif
 }
 
 void EVSYS_Handler() {
@@ -93,7 +100,7 @@ void tccEncoder::init()
 	port_config pinconfig;
 	port_get_config_defaults(&pinconfig);
 	pinconfig.direction = PORT_PIN_DIR_INPUT;
-	pinconfig.input_pull = PORT_PIN_PULL_UP;
+	pinconfig.input_pull = PORT_PIN_PULL_NONE;
 	
 	port_pin_set_config(PIN_PA02, &pinconfig);
 	port_pin_set_config(PIN_PB22, &pinconfig);

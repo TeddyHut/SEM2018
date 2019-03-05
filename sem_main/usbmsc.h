@@ -23,7 +23,7 @@ public:
 		float cruiseMax = 0; //km/h
 		float wheelRadius = 0; //m
 		unsigned int wheelSamplePoints = 0; //Number of magnets
-
+		unsigned int encoderBufferSize = 0;
 	};
 	enum class WakeCause {
 		None,

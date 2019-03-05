@@ -40,15 +40,16 @@ program::Output program::Idle::update(Input const &input)
 	Output out;
 	out.motorDutyCycle = 0;
 	
-	out.started = false;
+	out.programstate = Input::State::Idle;
 
 	if(runtime::usbmsc->isReady()) {
 		out.motorPWMFrequency = runtime::usbmsc->settings.motorFrequency;
+		runtime::encoder0->setBufferSize(runtime::usbmsc->settings.encoderBufferSize);
 		out.output[Output::Element::MotorPWMFrequency] = true;
 	}
 
 	out.output[Output::Element::MotorDutyCycle] = true;
-	out.output[Output::Element::Started] = true;
+	out.output[Output::Element::State] = true;
 	return out;
 }
 program::Task *program::Idle::complete(Input const &input)
@@ -145,11 +146,12 @@ program::Startup::Startup(Input const &input) : Task(TaskIdentity::Startup)
 	f_puts(str, &runtime::usbmsc->file);
 	f_sync(&runtime::usbmsc->file);
 	
-	rpl_snprintf(str, sizeof str, "CruiseMin(kmh-ms),%3.1f,%4.2f,\nCruiseMax(kmh-ms),%3.1f,%4.2f,\nWheelRadius,%.3f,\nMagnets,%u,\n",
+	rpl_snprintf(str, sizeof str, "CruiseMin(kmh-ms),%3.1f,%4.2f,\nCruiseMax(kmh-ms),%3.1f,%4.2f,\nWheelRadius,%.3f,\nMagnets,%u,\nSpeedBufferSize,%u,\n",
 		runtime::usbmsc->settings.cruiseMin, kmhToMs(runtime::usbmsc->settings.cruiseMin),
 		runtime::usbmsc->settings.cruiseMax, kmhToMs(runtime::usbmsc->settings.cruiseMax),
 		runtime::usbmsc->settings.wheelRadius,
-		runtime::usbmsc->settings.wheelSamplePoints
+		runtime::usbmsc->settings.wheelSamplePoints,
+		runtime::usbmsc->settings.encoderBufferSize
 		);
 	f_puts(str, &runtime::usbmsc->file);
 	f_sync(&runtime::usbmsc->file);
@@ -201,9 +203,9 @@ program::Output program::Startup::update(Input const &input)
 	Output out;
 	out.motorDutyCycle = f.currentValue(input.time);
 	
-	out.started = true;
+	out.programstate = Input::State::Running;
 
-	out.output.set(Output::Element::Started);
+	out.output.set(Output::Element::State);
 	out.output.set(Output::Element::MotorDutyCycle);
 	return out;
 }
@@ -289,7 +291,7 @@ void program::CoastRamp::displayUpdate(Display &disp)
 {
 	if(disp.topline->id != DisplayLine::ID::SpeedEnergy)
 		disp.topline.reset(new (pvPortMalloc(sizeof(DL_SpeedEnergy))) DL_SpeedEnergy);
-	if(disp.bottomline->id != DisplayLine::ID::Coasting)
+	if(disp.bottomline->id != DisplayLine::ID::Ramping)
 		disp.bottomline.reset(new (pvPortMalloc(sizeof(DL_Ramping))) DL_Ramping);
 }
 
@@ -302,7 +304,8 @@ program::OPCheck::OPCheck() : Task(TaskIdentity::OPCheck)
 program::Output program::OPCheck::update(Input const &input)
 {
 	Output out;
-	if(input.started && !finished) {
+	pm_changedProgramState = false;
+	if(input.programstate == Input::State::Running) {
 		auto buzzerSequence = [](Buzzer &buz) {
 			buz.start();
 			vTaskDelay(msToTicks(500));
@@ -327,18 +330,22 @@ program::Output program::OPCheck::update(Input const &input)
 			setoutputDefaults(out);
 		}
 	}
+	if((!input.opState) && ((input.time) - errorTime >= config::run::stoptimeout) && input.programstate == Input::State::Running) {
+		out.programstate = Input::State::Finished;
+		out.output[Output::Element::State] = true;
+		pm_changedProgramState = true;
+	}
 	previousOPState = input.opState;
 	return out;
 }
 program::Task * program::OPCheck::complete(Input const &input)
 {
-	if((!input.opState) && ((input.time) - errorTime >= config::run::stoptimeout) && input.started && !finished) {
-		finished = true;
-		return new(pvPortMalloc(sizeof(Finished))) Finished(input.startTime, input.totalEnergyUsage, input.startDistance);
-	}
 	return nullptr;
 }
-
+bool program::OPCheck::changedProgramState() const
+{
+	return pm_changedProgramState;
+}
 
 program::Finished::Finished(float const time, float const energy, float const distance) : Task(TaskIdentity::Finished), time(time), energy(energy), distance(distance) {
 	f_close(&runtime::usbmsc->file);
@@ -351,6 +358,10 @@ program::Output program::Finished::update(Input const &input)
 }
 program::Task * program::Finished::complete(Input const &input)
 {
+	if(input.opState) {
+		runtime::usbmsc->reload();
+		return new (pvPortMalloc(sizeof(Idle))) Idle;
+	}
 	return nullptr;
 }
 void program::Finished::displayUpdate(Display &disp)

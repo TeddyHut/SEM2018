@@ -7,6 +7,7 @@
 
 #include "rundisplay.h"
 #include "instance.h"
+#include "dep_instance.h"
 
 template <typename T>
 constexpr T enumCycle(T const v) {
@@ -96,9 +97,11 @@ void program::DL_SpeedEnergy::get_text(char str[], Input const &input)
 	switch(curcycle) {
 	case Cycle::SpeedEnergy:
 		rpl_snprintf(str, 17, "%#5.2fkmh %#5.2fWh", msToKmh(input.vehicleSpeedMs), input.totalEnergyUsage);
+		//rpl_snprintf(str, 17, "%#5.2fkmh %u", msToKmh(input.vehicleSpeedMs), runtime::encoder0->getSampleTotal());
 		break;
 	case Cycle::Time:
-		rpl_snprintf(str, 17, "Runtime:   %02u:%02u", static_cast<unsigned int>(input.startTime) / 60, static_cast<unsigned int>(input.startTime) % 60);
+		rpl_snprintf(str, 17, "%#5.2fkmh T %02u:%02u", msToKmh(input.vehicleSpeedMs), static_cast<unsigned int>(input.startTime) / 60, static_cast<unsigned int>(input.startTime) % 60);
+		//rpl_snprintf(str, 17, "%#5.2fkmh %u", msToKmh(input.vehicleSpeedMs), runtime::encoder0->getSampleTotal());
 		break;
 	case Cycle::_size:
 		break;
@@ -172,6 +175,9 @@ void program::DL_Settings::get_text(char str[], Input const &input)
 	case Cycle::Wheel:
 		rpl_snprintf(str, 17, "Rad %3umm Mags %u", static_cast<unsigned int>(runtime::usbmsc->settings.wheelRadius * 1000.0f), runtime::usbmsc->settings.wheelSamplePoints);
 		break;
+	case Cycle::Buffer:
+		rpl_snprintf(str, 17, "SpdSamples: %4u", runtime::usbmsc->settings.encoderBufferSize);
+		break;
 	case Cycle::_size:
 		break;
 	}
@@ -187,7 +193,7 @@ void program::DL_Ramping::get_text(char str[], Input const &input)
 {
 	switch(curcycle) {
 		case Cycle::MotorCurrent:
-			rpl_snprintf(str, 17, "Current: %6.2fA", std::max(0.0f, input.bms0data.current));
+			rpl_snprintf(str, 17, "Current: %6.2fA", input.calculationCurrent);
 			break;
 		case Cycle::DutyCycle:
 			rpl_snprintf(str, 17, "Duty: %9.1f%%", input.motorDutyCycle * 100.0f);

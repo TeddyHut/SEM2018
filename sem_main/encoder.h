@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include <array>
+#include <vector>
 #include <numeric>
 #include <iterator>
 #include <functional>
@@ -29,17 +29,20 @@ public:
 	virtual float getSpeed() const = 0;
 	virtual float getAverageInterval() const = 0;
 	virtual size_t getSampleTotal() const = 0;
+	virtual void setBufferSize(size_t const size) = 0;
 };
 
 template <typename T, size_t s = config::encoder::bufferSize>
 class Ticker {
 public:
 	void tick(T const t);
+	void setBufferSize(size_t const size);
+	size_t getBufferSize() const;
 	T getAverageInterval() const;
 	size_t getTicks() const;
 	Ticker();
 private:
-	using buf_t = std::array<T, s>;
+	using buf_t = std::vector<T>;
 	buf_t buffer;
 	//For seme reason iterator wouldn't work in the std:: functions. TODO: Try again with std functions, might have just messed up some syntax or something
 	size_t itr = 0;
@@ -47,6 +50,18 @@ private:
 	size_t ticks = 0;
 	bool filled = false;
 };
+
+template <typename T, size_t s /*= config::encoder::bufferSize*/>
+size_t Ticker<T, s>::getBufferSize() const
+{
+	return buffer.size();
+}
+
+template <typename T, size_t s /*= config::encoder::bufferSize*/>
+void Ticker<T, s>::setBufferSize(size_t const size)
+{
+	buffer.resize(size);
+}
 
 template <typename T, size_t s /*= config::encoder::bufferSize*/>
 size_t Ticker<T, s>::getTicks() const
@@ -98,6 +113,7 @@ public:
 	float getSpeed() const override;
 	float getAverageInterval() const override;
 	size_t getSampleTotal() const override;
+	void setBufferSize(size_t const size) override;
 	static counter_t getCounterValue();
 	TimerEncoder(convert_t const convertfn);
 protected:
@@ -107,6 +123,12 @@ protected:
 	counter_t total = 0;
 	counter_t start = 0;
 };
+
+template <size_t n, typename counter_t /*= unsigned int*/>
+void TimerEncoder<n, counter_t>::setBufferSize(size_t const size)
+{
+	ticker.setBufferSize(size);
+}
 
 template <size_t n, typename counter_t /*= unsigned int*/>
 size_t TimerEncoder<n, counter_t>::getSampleTotal() const 
@@ -125,7 +147,15 @@ template <size_t n, typename counter_t /*= unsigned int*/>
 float TimerEncoder<n, counter_t>::getAverageInterval() const 
 {
 	//Get whichever is higher: The average time or the time since the last tick
-	auto rtrnTime = std::max(ticker.getAverageInterval(), getCounterValue() + total - start);
+	//auto rtrnTime = std::max(ticker.getAverageInterval(), getCounterValue() + total - start);
+	auto avgInterval = ticker.getAverageInterval();
+	auto tickerBufferSize = ticker.getBufferSize();
+	auto timerValue = getCounterValue() + total - start;
+	float rtrnTime;
+	if(timerValue > avgInterval)
+		rtrnTime = (avgInterval * tickerBufferSize + timerValue) / (tickerBufferSize + 1);
+	else
+		rtrnTime = avgInterval;
 	if(rtrnTime >= config::encoder::zerotimeout)
 		return 0;
 	return rtrnTime;

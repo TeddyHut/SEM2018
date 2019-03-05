@@ -28,6 +28,8 @@
 #define SERVO1_ENABLE_PIN PIN_PA09
 #endif
 
+#define PATCH_ENCODER0_TO_ENCODER2 1
+
 #define ENABLE_MANUALSERIAL 0
 #define ENABLE_ADPCONTROL 0
 
@@ -127,7 +129,7 @@ namespace config {
 		constexpr float period = 1 / 2400.0f;
 	}
 	namespace encoder {
-		constexpr size_t bufferSize = 2;
+		constexpr size_t bufferSize = 6;
 		constexpr tcc_clock_prescaler prescaeSetting = TCC_CLOCK_PRESCALER_DIV1;
 		constexpr gclk_generator clockSource = GCLK_GENERATOR_3;
 		//1 second of no ticks results in an output of zero
