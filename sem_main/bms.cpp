@@ -38,6 +38,11 @@ namespace {
 			FireRelay,
 			LEDOn,
 			LEDOff,
+			Set_CutoffCurrent,
+			Set_CutoffTemperature,
+			Set_CutoffVoltage,
+			Set_MaximumVoltage,
+			Set_ConsecutiveErrors,
 		};
 	};
 
@@ -156,7 +161,7 @@ void BMS::task_main()
 		//Calculate BMS current
 		float vcc = bmsdata.cellVoltage[0];
 		uint16_t current_adc = retreiveFromBuffer(recvbuf, DataIndexes::CurrentADC);
-		float opamp_outV = adc_voltage<uint16_t, 1024>(current_adc, 1.1f);
+		float opamp_outV = adc_voltage<uint16_t, 1024>(current_adc, 2.5f);
 		float opamp_inV = current_opamp_transformation_inV_bms(opamp_outV, vcc);
 		bmsdata.current = acs711_current(opamp_inV, vcc);
 

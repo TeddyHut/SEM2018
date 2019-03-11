@@ -4,7 +4,7 @@
  * This code is designed for an Atmel ATtiny816, to be compiled with AVR-GCC
  */
 
-#define BMS_NUMBER 1
+#define BMS_NUMBER 2
 #define F_CPU 20000000
 
 #include <avr/io.h>
@@ -24,13 +24,13 @@
 #define ERROR_OFFSET_VCC 4
 #define ERROR_OFFSET_TEMPERATURE 0
 #elif (BMS_NUMBER == 2)
-#define ERROR_OFFSET_CURRENT 2
+#define ERROR_OFFSET_CURRENT 0
 #define ERROR_OFFSET_VCC 8
 #define ERROR_OFFSET_TEMPERATURE 0
 #endif
 
 
-constexpr float CutoffCurrent = 5;
+constexpr float CutoffCurrent = 12;
 constexpr float CutoffTemperature = 60;
 constexpr float CutoffVoltage = 3.15;
 constexpr float MaximumVoltage = 4.3;
@@ -39,7 +39,7 @@ constexpr float KillVoltage = 3;
 //Cycles before BMS determines that main board isn't connected
 constexpr unsigned int Keepalive_maxCycles = 50;
 //Number of cycles that there has to be an error for before firing
-constexpr unsigned int ConsecutiveErrors = 2;
+constexpr unsigned int ConsecutiveErrors = 300 / 5; //300ms trigger time
 //The number of cycles after firing the relay before stopping current flow through the relay
 constexpr unsigned int RelayTimeout_cycles = 50;
 
@@ -98,6 +98,11 @@ enum class Instruction : uint8_t {
 	FireRelay,
 	LEDOn,
 	LEDOff,
+	Set_CutoffCurrent,
+	Set_CutoffTemperature,
+	Set_CutoffVoltage,
+	Set_MaximumVoltage,
+	Set_ConsecutiveErrors,
 };
 
 enum class DataIndexes {
@@ -337,7 +342,7 @@ ISR(TCB0_INT_vect) {
 			errorOffset = ERROR_OFFSET_TEMPERATURE;
 		}
 		else if(static_cast<DataIndexes>(i) == DataIndexes::CurrentADC) {
-			VREF.CTRLA |= VREF_ADC0REFSEL_1V1_gc;
+			VREF.CTRLA |= VREF_ADC0REFSEL_2V5_gc;
 			errorOffset = ERROR_OFFSET_CURRENT;
 		}
 		else {
@@ -356,7 +361,7 @@ ISR(TCB0_INT_vect) {
 	volatile uint16_t cell0val = retreiveFromBuffer(dataBuffer[bufferChoice], DataIndexes::Cell0ADC);
 	volatile float vcc = vdiv_input(adc_voltage<uint16_t, 1024>(cell0val, 2.5f), vdiv_factor(10, 5.6));
 	volatile uint16_t opamp_adcVal = retreiveFromBuffer(dataBuffer[bufferChoice], DataIndexes::CurrentADC);
-	volatile float opamp_outV = adc_voltage<uint16_t, 1024>(opamp_adcVal, 1.1f);
+	volatile float opamp_outV = adc_voltage<uint16_t, 1024>(opamp_adcVal, 2.5f);
 	volatile float acs711OutV = current_opamp_transformation_inV(opamp_outV, vcc);
 	volatile float current = acs711_current(acs711OutV, vcc);
 	volatile float temperature = calculateTemperature(retreiveFromBuffer(dataBuffer[bufferChoice], DataIndexes::TemperatureADC));

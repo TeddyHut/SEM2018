@@ -193,14 +193,14 @@ void program::DL_Ramping::get_text(char str[], Input const &input)
 {
 	switch(curcycle) {
 		case Cycle::MotorCurrent:
-			rpl_snprintf(str, 17, "Current: %6.2fA", input.calculationCurrent);
+			rpl_snprintf(str, 17, "C %5.2fA D %4.1f%%", input.calculationCurrent, input.motorDutyCycle * 100.0f);
 			break;
-		case Cycle::DutyCycle:
-			rpl_snprintf(str, 17, "Duty: %9.1f%%", input.motorDutyCycle * 100.0f);
-			break;
-		case Cycle::Rampspeed:
-			rpl_snprintf(str, 17, "MtrRPM: %8.1f", input.motorRPS * 60.0f);
-			break;
+		//case Cycle::DutyCycle:
+		//	rpl_snprintf(str, 17, "Duty: %9.1f%%", input.motorDutyCycle * 100.0f);
+		//	break;
+		//case Cycle::Rampspeed:
+		//	rpl_snprintf(str, 17, "MtrRPM: %8.1f", input.motorRPS * 60.0f);
+		//	break;
 		case Cycle::_size:
 			break;
 	}

@@ -13,7 +13,11 @@ void TCMotor::setDutyCycle(float const dutyCycle)
 {
 	this->dutyCycle = dutyCycle;
 	//Set to duty cycle * period compare
-	instance.hw->COUNT16.CC[1].bit.CC = dutyCycle * instance.hw->COUNT16.CC[0].bit.CC;
+	uint16_t compareValue = dutyCycle * instance.hw->COUNT16.CC[0].bit.CC;
+	//Prevent a glitch where it drops down for a tiny bit at 100%
+	if(compareValue >= instance.hw->COUNT16.CC[0].bit.CC) compareValue++;
+	instance.hw->COUNT16.CC[1].bit.CC = compareValue;
+	//instance.hw->COUNT16.CC[1].bit.CC = instance.hw->COUNT16.CC[0].bit.CC + 1;
 }
 
 void TCMotor::setPeriod(float const period)
@@ -47,5 +51,7 @@ TCMotor0::TCMotor0()
 	tc_init(&instance, TC4, &config);
 	setPeriod(1.0f / 1000.0f); //1000Hz
 	setDutyCycle(0.0f);
+	//Do this to invert waveform
+	instance.hw->COUNT16.CTRLC.bit.INVEN1 = true;
 	tc_enable(&instance);
 }

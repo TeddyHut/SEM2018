@@ -1,8 +1,9 @@
-2
-500
-10
-10
-22
-27
-0.215
-4
+2 #Sample frequecy (data logging)
+500 #Motor PWM frequency
+10 #Rampup time from stationary
+10 #Rampup time from moving
+22 #Min speed (km/h)
+27 #Max speed (km/h)
+0.215 #Wheel radius
+3 #Number of magnets
+6 #Speed detection buffer size (number of values to average)

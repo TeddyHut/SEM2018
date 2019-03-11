@@ -114,11 +114,11 @@ namespace program {
 	protected:
 		void cycle() override;
 		enum class Cycle {
-			DutyCycle = 0,
-			MotorCurrent,
-			Rampspeed,
+			//DutyCycle = 0,
+			MotorCurrent = 0,
+			//Rampspeed,
 			_size,
-		} curcycle = Cycle::DutyCycle;
+		} curcycle = Cycle::MotorCurrent;
 	};
 
 	//Alternates between coasting statistics (distance traveled, time coasting, battery voltages, USB samples)
