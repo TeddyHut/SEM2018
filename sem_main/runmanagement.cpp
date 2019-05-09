@@ -19,14 +19,6 @@
 
 using namespace program;
 
-constexpr float current_opamp_transformation_outV_motor(float const inV, float const vcc) {
-	return (inV * ((5.1 * (2 * (1 + 5.1) + 10)) / ((1 + 5.1) * (2 * 1 + 10)))) - (vcc * (5.1 / (2 * 1 + 10)));
-}
-
-constexpr float current_opamp_transformation_inV_motor(float const outV, float const vcc) {
-	return (outV + (vcc * (5.1 / (2 * 1 + 10)))) / ((5.1 * (2 * (1 + 5.1) + 10)) / ((1 + 5.1) * (2 * 1 + 10)));
-}
-
 float driveIntervalToMs(float const interval) {
 	if(interval <= 0)
 		return 0;
@@ -65,47 +57,6 @@ void initRTC() {
 	rtc_count_set_count(&rtc_instance, 0);
 	rtc_count_enable(&rtc_instance);
 }
-
-adc_module adc_instance;
-
-void initADC() {
-	adc_config config;
-	adc_get_config_defaults(&config);
-	config.clock_source = GCLK_GENERATOR_1;
-	config.clock_prescaler = ADC_CLOCK_PRESCALER_DIV8;
-	config.reference = ADC_REFERENCE_INTVCC1;
-	config.resolution = ADC_RESOLUTION_12BIT;
-	config.gain_factor = ADC_GAIN_FACTOR_1X;
-	config.negative_input = ADC_NEGATIVE_INPUT_GND;
-	//config.accumulate_samples = ADC_ACCUMULATE_SAMPLES_4;
-	//config.divide_result = ADC_DIVIDE_RESULT_4;
-	config.left_adjust = false;
-	config.differential_mode = false;
-	config.freerunning = false;
-	config.reference_compensation_enable = false;
-	config.sample_length = 16;
-	adc_init(&adc_instance, ADC, &config);
-	adc_enable(&adc_instance);
-}
-
-/*
-float get_motor_current(MotorIndex const index) {
-	if(index == MotorIndex::motor) {
-		adc_set_positive_input(&adc_instance, ADC_POSITIVE_INPUT_PIN1);
-	}
-	else if (index == MotorIndex::Motor1) {
-		adc_set_positive_input(&adc_instance, ADC_POSITIVE_INPUT_PIN0);
-	}
-	adc_start_conversion(&adc_instance);
-	uint16_t result = 0;
-	while(adc_read(&adc_instance, &result) == STATUS_BUSY);
-	volatile float opamp_outV = adcutil::adc_voltage<uint16_t, 4096>(result, (1.0f / 1.48f) * 3.3f);
-	volatile float opamp_inV = current_opamp_transformation_inV_motor(opamp_outV, 3.3f);
-	volatile float current = acs711_current(opamp_inV, 3.3f);
-	//return current;
-	return 0;	
-}
-*/
 
 void fillInput(Input &input, Output const &prevOutput) {
 	static ButtonBuffer opBuffer;
@@ -230,20 +181,17 @@ void makeLogEntries(Input const &input, Task *const currenttask) {
 		case TaskIdentity::Finished:
 			strcpy(strmode, "Finished");
 			break;
+		case TaskIdentity::Manual:
+			strcpy(strmode, "Manual");
+			break;
 		}
 		char str[196];
-		rpl_snprintf(str, sizeof str, "%u,%.3f,%s,%.3f,%4.1f,%4.1f,%4.1f,%4.1f,%.3f,%.3f,%.2f,%.3f,%.2f,%u,\n",
+		rpl_snprintf(str, sizeof str, "%u,%.3f,%s,%.2f,%u,%.3f,%.2f,%u,\n",
 			input.samples, //Samples
 			input.startTime, //Runtime
 			strmode, //Mode
-			input.calculationCurrent, //Current
-			input.bms0data.voltage, //Bat0 voltage
-			input.bms1data.voltage, //Bat1 voltage
-			input.bms0data.temperature, //Bat0 temp
-			input.bms1data.temperature, //Bat1 temp
-			input.calculationCurrent * (input.bms0data.voltage + input.bms1data.voltage), //Power (W) (V*I)
-			input.totalEnergyUsage * 3600.0f, //Total energy usage is in Wh, convert to J
 			input.motorDutyCycle, //MotorDuty
+			input.wheelTicks,
 			input.vehicleSpeedMs, //Velocity
 			input.startDistance, //Distance
 			input.opState ? 1 : 0 //OP
@@ -262,7 +210,9 @@ void runmanagement::run()
 	Output output;
 
 	Task *currentTask = new (pvPortMalloc(sizeof(Idle))) Idle;
+	#ifndef MANUAL_MODE
 	OPCheck *opCheck = new (pvPortMalloc(sizeof(OPCheck))) OPCheck;
+	#endif
 
 	auto allocateNewTask = [&](Task *const returnTask) {
 		currentTask->~Task();
@@ -286,6 +236,7 @@ void runmanagement::run()
 			allocateNewTask(returnTask);
 		}
 		//Perform overriding checks
+		#ifndef MANUAL_MODE
 		for(auto &&element : {opCheck}) {
 			mergeOutput(output, element->update(input));
 			auto returnTask = element->complete(input);
@@ -305,6 +256,7 @@ void runmanagement::run()
 				break;
 			}
 		}
+		#endif
 		currentTask->displayUpdate(disp);
 
 		makeLogEntries(input, currentTask);

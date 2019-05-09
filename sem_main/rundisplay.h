@@ -25,6 +25,8 @@ namespace program {
 			Ramping,
 			Coasting,
 			Finished,
+			SpeedTime,
+			MotorDistance,
 		} id;
 		virtual void get_text(char str[], Input const &input) = 0;
 		DisplayLine(ID const id = ID::None);
@@ -72,6 +74,9 @@ namespace program {
 			SampleFrequency,
 			Wheel,
 			Buffer,
+			//Overcurrent,
+			//Triggercycles,
+			OPRampTime,
 			_size,
 		} curcycle = Cycle::File;
 	};
@@ -165,5 +170,17 @@ namespace program {
 		std::unique_ptr<DisplayLine, deleter_free<DisplayLine>> bottomline;
 		
 		void printDisplay(Input const &input) const;
+	};
+
+	class DL_SpeedTime : public DisplayLine {
+	public:
+		void get_text(char str[], Input const &input) override;
+		DL_SpeedTime();
+	};
+
+	class DL_MotorDistance : public DisplayLine {
+	public:
+		void get_text(char str[], Input const &input) override;
+		DL_MotorDistance();
 	};
 }

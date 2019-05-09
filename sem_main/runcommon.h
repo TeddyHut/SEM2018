@@ -20,6 +20,7 @@ namespace program {
 		CoastRamp,
 		Finished,
 		OPCheck,
+		Manual,
 		_size,
 	};
 

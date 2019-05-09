@@ -45,6 +45,7 @@ namespace program {
 		bool previousOPState = true;
 		bool doCountdown;
 		int countdown = -1;
+		bool previousReadyState = false;
 	};
 
 	//Desc: Brings motor duty cycle upto 100% over time of config::run::rampuptime. Stops motors when input.driveSpeed is greater than config::run::maxspeed
@@ -107,5 +108,15 @@ namespace program {
 		bool keepBeeping = true;
 		float errorTime = 0;
 		bool pm_changedProgramState = false;
+	};
+
+	class Manual : public Task {
+	public:
+		Output update(Input const &input) override;
+		Task *complete(Input const &input) override;
+		void displayUpdate(Display &disp);
+		Manual(Input const &input);
+	private:
+		ValueMatch::Linear<float, float> f;
 	};
 }

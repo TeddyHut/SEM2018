@@ -178,6 +178,15 @@ void program::DL_Settings::get_text(char str[], Input const &input)
 	case Cycle::Buffer:
 		rpl_snprintf(str, 17, "SpdSamples: %4u", runtime::usbmsc->settings.encoderBufferSize);
 		break;
+	//case Cycle::Overcurrent:
+	//	rpl_snprintf(str, 17, "CsO %2.0fA DrvO %2.0fA", runtime::usbmsc->settings.coastcurrent, runtime::usbmsc->settings.drivecurrent);
+	//	break;
+	//case Cycle::Triggercycles:
+	//	rpl_snprintf(str, 17, "CsT %3u DrvT %3u", runtime::usbmsc->settings.coasttriggercycles, runtime::usbmsc->settings.drivetriggercycles);
+	//	break;
+	case Cycle::OPRampTime:
+		rpl_snprintf(str, 17, "OPRamp: %3.1fs", runtime::usbmsc->settings.opramptime);
+		break;
 	case Cycle::_size:
 		break;
 	}
@@ -239,3 +248,17 @@ void program::DL_Coasting::cycle()
 {
 	curcycle = enumCycle(curcycle);
 }
+
+void program::DL_SpeedTime::get_text(char str[], Input const &input)
+{
+	rpl_snprintf(str, 17, "%#5.2fkmh T %02u:%02u", msToKmh(input.vehicleSpeedMs), static_cast<unsigned int>(input.startTime) / 60, static_cast<unsigned int>(input.startTime) % 60);
+}
+
+program::DL_SpeedTime::DL_SpeedTime() : DisplayLine(ID::SpeedTime) {}
+
+void program::DL_MotorDistance::get_text(char str[], Input const &input)
+{
+	rpl_snprintf(str, 17, "Mt %3u%% %#5.2fkm", static_cast<unsigned int>(input.motorDutyCycle * 100), input.startDistance / 1000);
+}
+
+program::DL_MotorDistance::DL_MotorDistance() : DisplayLine(ID::MotorDistance) {}

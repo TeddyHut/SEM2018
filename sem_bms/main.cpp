@@ -29,17 +29,28 @@
 #define ERROR_OFFSET_TEMPERATURE 0
 #endif
 
+namespace staticconfig {
+	constexpr float CutoffCurrent = 12;
+	constexpr float CutoffTemperature = 60;
+	constexpr float CutoffVoltage = 3.15;
+	constexpr float MaximumVoltage = 4.3;
+	constexpr float KillVoltage = 3;
+	//Number of cycles that there has to be an error for before firing
+	constexpr int ConsecutiveErrors = 300 / 5; //300ms trigger time
+}
 
-constexpr float CutoffCurrent = 12;
-constexpr float CutoffTemperature = 60;
-constexpr float CutoffVoltage = 3.15;
-constexpr float MaximumVoltage = 4.3;
-constexpr float KillVoltage = 3;
+namespace hostconfig {
+	volatile float CutoffCurrent = -1.0f;
+	volatile float CutoffTemperature = -1.0f;
+	volatile float CutoffVoltage = -1.0f;
+	volatile float MaximumVoltage = -1.0f;
+	volatile float KillVoltage = -1.0f;
+	volatile int ConsecutiveErrors = -1;
+}
 
 //Cycles before BMS determines that main board isn't connected
 constexpr unsigned int Keepalive_maxCycles = 50;
-//Number of cycles that there has to be an error for before firing
-constexpr unsigned int ConsecutiveErrors = 300 / 5; //300ms trigger time
+
 //The number of cycles after firing the relay before stopping current flow through the relay
 constexpr unsigned int RelayTimeout_cycles = 50;
 
@@ -103,7 +114,7 @@ enum class Instruction : uint8_t {
 	Set_CutoffVoltage,
 	Set_MaximumVoltage,
 	Set_ConsecutiveErrors,
-};
+} currentinstruction = Instruction::Normal;
 
 enum class DataIndexes {
 	TemperatureADC = 0,
@@ -150,11 +161,14 @@ volatile LEDBlinkAmount cause_blinkAmount = Blink_Button;
 uint32_t totalCycles = 0;
 //Used to determine whether main board is still communicating.
 unsigned int keepalive_cycles = 0;
+//Set to true when the host is connected/still communicating
+bool host_connected = false;
 //Used so that current doesn't have to constantly be flowing through relay if it is triggered
 unsigned int relaytimeout_cycles = 50;
 
 //Set to true if the relay is fired. Used to determine whether or not setBlinkingLEDState should work or not
 bool relay_fired = false;
+
 
 uint16_t retreiveFromBuffer(volatile uint8_t const buffer[], DataIndexes const pos) {
 	return (buffer[static_cast<unsigned int>(pos) * 2] |
@@ -224,6 +238,11 @@ void setRelayState(bool const state, LEDBlinkAmount const blinkAmount = Blink_Bu
 	relay_fired = state;
 }
 
+template <typename T>
+T get_assert_value(T const staticver, T const hostver) {
+	return host_connected && hostver >= 0 ? hostver : staticver;
+}
+
 //Calling this function with a false -result- for ConsecutiveErrors sampling cycles will cause the relay to trigger
 void relayAssert(bool const result, LEDBlinkAmount const blinkAmount) {
 	//Check that for the buffer the functions are being called from separate cycles (as opposed to multiple from the same cycle)
@@ -239,7 +258,7 @@ void relayAssert(bool const result, LEDBlinkAmount const blinkAmount) {
 
 	if(lastCycle != totalCycles) {
 		//A new cycle
-		if(wasSetLastCycle && (consecutiveErrors++ == ConsecutiveErrors)) {
+		if(wasSetLastCycle && (consecutiveErrors++ == get_assert_value(staticconfig::ConsecutiveErrors, hostconfig::ConsecutiveErrors))) {
 			relaytimeout_cycles = RelayTimeout_cycles;
 			setRelayState(true, errorBlinkAmount, str_error);
 		}
@@ -318,11 +337,14 @@ ISR(TCB0_INT_vect) {
 	totalCycles++;
 	if(++keepalive_cycles >= Keepalive_maxCycles) {
 		setLEDBlinkingState(true);
+		host_connected = false;
 		//Such bad code, to prevent overflow
 		keepalive_cycles--;
 	}
-	else
+	else {
+		host_connected = true;
 		setLEDBlinkingState(false);
+	}
 	if(relaytimeout_cycles != 0) {
 		if(--relaytimeout_cycles == 0)
 			PORTA.OUTCLR = (1 << 5);
@@ -367,11 +389,11 @@ ISR(TCB0_INT_vect) {
 	volatile float temperature = calculateTemperature(retreiveFromBuffer(dataBuffer[bufferChoice], DataIndexes::TemperatureADC));
 	//Make sure that VCC is still high enough
 	snprintf(str_triggerCause, sizeof str_triggerCause / sizeof *str_triggerCause, "Cell0 %-#3.2f", static_cast<double>(vcc));
-	relayAssert(vcc > CutoffVoltage, Blink_Voltage);
+	relayAssert(vcc > get_assert_value(staticconfig::CutoffVoltage, hostconfig::CutoffVoltage), Blink_Voltage);
 	//Make sure that VCC is still low enough
-	relayAssert(vcc < MaximumVoltage, Blink_OverVoltage);
+	relayAssert(vcc < get_assert_value(staticconfig::MaximumVoltage, hostconfig::MaximumVoltage), Blink_OverVoltage);
 	//If VCC gets less than 2.95V fire relay (should already be fired, but just in case), disable isolator, and put the processor into deepest sleep mode
-	if(vcc <= KillVoltage) {
+	if(vcc <= staticconfig::KillVoltage) {
 		shutdown();
 	}
 	//Make sure that all the other cells are still within conditions
@@ -380,46 +402,88 @@ ISR(TCB0_INT_vect) {
 		volatile float voltage = vdiv_input(adc_voltage<uint16_t, 1024>(adc_val, 2.5f), 5.6f / 10.0f);
 		snprintf(str_triggerCause, sizeof str_triggerCause / sizeof *str_triggerCause, "Cell%u %-#3.2f", i + 1, static_cast<double>(voltage));
 		//Protect against undervoltage
-		relayAssert(voltage > CutoffVoltage, Blink_Voltage);
+		relayAssert(voltage > get_assert_value(staticconfig::CutoffVoltage, hostconfig::CutoffVoltage), Blink_Voltage);
 		//Protect against overvoltage
-		relayAssert(voltage < MaximumVoltage, Blink_OverVoltage);
+		relayAssert(voltage < get_assert_value(staticconfig::MaximumVoltage, hostconfig::MaximumVoltage), Blink_OverVoltage);
 	}
 	//Make sure that there is no over-current
-	snprintf(str_triggerCause, sizeof str_triggerCause / sizeof *str_triggerCause, "Current %-#4.2f", static_cast<double>(current));
-	relayAssert(current < CutoffCurrent, Blink_Current);
+	//snprintf(str_triggerCause, sizeof str_triggerCause / sizeof *str_triggerCause, "Current %-#4.2f", static_cast<double>(current));
+	//relayAssert(current < get_assert_value(staticconfig::CutoffCurrent, hostconfig::CutoffCurrent), Blink_Current);
 	//Make sure there is no over-temperature
 	snprintf(str_triggerCause, sizeof str_triggerCause / sizeof *str_triggerCause, "Temp %-#5.2f", static_cast<double>(temperature));
-	relayAssert(temperature < CutoffTemperature, Blink_Temperature);
+	relayAssert(temperature < get_assert_value(staticconfig::CutoffTemperature, hostconfig::CutoffTemperature), Blink_Temperature);
 	dataBufferChoice = bufferChoice;
 }
 
 //SPI interrupt
 ISR(SPI0_INT_vect) {
+	static uint16_t hostconfig_recv = 0;
+	static uint8_t hostconfig_pos = 0;
 	keepalive_cycles = 0;
 	if(SPI0.INTFLAGS & SPI_RXCIF_bm) {
 		uint8_t const data = SPI0.DATA;
-		switch(static_cast<Instruction>(data)) {
-		case Instruction::ReceiveData:
-			dataBufferPos = 0;
-			//Fallthrough intentional
-		case Instruction::Normal:
-			if(dataBufferPos >= (sizeof dataBuffer[0] / sizeof *(dataBuffer[0])))
+		switch (currentinstruction) {
+		case Instruction::Set_CutoffCurrent:
+		case Instruction::Set_CutoffTemperature:
+		case Instruction::Set_CutoffVoltage:
+		case Instruction::Set_MaximumVoltage:
+		case Instruction::Set_ConsecutiveErrors:
+			if(!host_connected) {
+				currentinstruction = Instruction::Normal;
+				break;
+			}
+			hostconfig_recv |= static_cast<uint16_t>(data) << (hostconfig_pos * 8);
+			if(++hostconfig_pos == sizeof(hostconfig_recv)) {
+				switch(currentinstruction) {
+				case Instruction::Set_CutoffCurrent:
+					hostconfig::CutoffCurrent = hostconfig_recv / 1000;
+					break;
+				case Instruction::Set_CutoffTemperature:
+					hostconfig::CutoffTemperature = hostconfig_recv / 100;
+					break;
+				case Instruction::Set_CutoffVoltage:
+					hostconfig::CutoffVoltage = hostconfig_recv / 1000;
+					break;
+				case Instruction::Set_MaximumVoltage:
+					hostconfig::MaximumVoltage = hostconfig_recv / 1000;
+					break;
+				case Instruction::Set_ConsecutiveErrors:
+					hostconfig::ConsecutiveErrors = hostconfig_recv;
+					break;
+				default: break;
+				}
+				currentinstruction = Instruction::Normal;
+				hostconfig_pos = 0;
+			}
+			break;
+		default: {
+			switch(static_cast<Instruction>(data)) {
+			case Instruction::ReceiveData:
 				dataBufferPos = 0;
-			SPI0.DATA = dataBuffer[dataBufferChoice][dataBufferPos++];
-			break;
-		case Instruction::FireRelay:
-			snprintf(str_triggerCause, sizeof str_triggerCause / sizeof *str_triggerCause, "Instruction");
-			setRelayState(true);
-			break;
-		case Instruction::LEDOn:
-			setLEDState(true);
-			break;
-		case Instruction::LEDOff:
-			setLEDState(false);
-			break;
-		default:
-			break;
+				//Fallthrough intentional
+			case Instruction::Normal:
+				if(dataBufferPos >= (sizeof dataBuffer[0] / sizeof *(dataBuffer[0])))
+				dataBufferPos = 0;
+				SPI0.DATA = dataBuffer[dataBufferChoice][dataBufferPos++];
+				break;
+			case Instruction::FireRelay:
+				snprintf(str_triggerCause, sizeof str_triggerCause / sizeof *str_triggerCause, "Instruction");
+				setRelayState(true);
+				break;
+			case Instruction::LEDOn:
+				setLEDState(true);
+				break;
+			case Instruction::LEDOff:
+				setLEDState(false);
+				break;
+			default:
+				currentinstruction = static_cast<Instruction>(data);
+				hostconfig_pos = 0;
+				break;
+			}
 		}
+		}
+		
 	}
 }
 

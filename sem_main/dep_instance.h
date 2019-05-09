@@ -10,9 +10,6 @@
 #include "bms.h"
 #include "motor.h"
 #include "encoder.h"
-#include "servo.h"
-#include "emc1701.h"
-#include "sensor.h"
 
 namespace runtime {
 	extern BMS			 *bms0;

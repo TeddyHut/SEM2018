@@ -24,6 +24,10 @@ public:
 		float wheelRadius = 0; //m
 		unsigned int wheelSamplePoints = 0; //Number of magnets
 		unsigned int encoderBufferSize = 0;
+		float opramptime = 0;
+		float drivecurrent = 0;
+		unsigned int coasttriggercycles = 0;
+		unsigned int drivetriggercycles = 0;
 	};
 	enum class WakeCause {
 		None,

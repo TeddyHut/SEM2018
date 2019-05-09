@@ -16,6 +16,62 @@
 
 using namespace program;
 
+void setup_log_file(Input const &input) {
+	char str[196];
+	//Write settings to log file
+	rpl_snprintf(str, sizeof str, "SampleFrequency,%5.2f,\nMotorFrequency,%5.0f,\nStartRampTime,%4.1f,\nCoastRampTime,%4.1f,\n",
+	runtime::usbmsc->settings.sampleFrequency,
+	runtime::usbmsc->settings.motorFrequency,
+	runtime::usbmsc->settings.startupramptime,
+	runtime::usbmsc->settings.coastramptime
+	);
+	f_puts(str, &runtime::usbmsc->file);
+	f_sync(&runtime::usbmsc->file);
+	
+	rpl_snprintf(str, sizeof str, "CruiseMin(kmh-ms),%3.1f,%4.2f,\nCruiseMax(kmh-ms),%3.1f,%4.2f,\nWheelRadius,%.3f,\nMagnets,%u,\nSpeedBufferSize,%u,\n",
+	runtime::usbmsc->settings.cruiseMin, kmhToMs(runtime::usbmsc->settings.cruiseMin),
+	runtime::usbmsc->settings.cruiseMax, kmhToMs(runtime::usbmsc->settings.cruiseMax),
+	runtime::usbmsc->settings.wheelRadius,
+	runtime::usbmsc->settings.wheelSamplePoints,
+	runtime::usbmsc->settings.encoderBufferSize
+	);
+	f_puts(str, &runtime::usbmsc->file);
+	f_sync(&runtime::usbmsc->file);
+
+	//Write cell voltages (battery 0) to log file
+	rpl_snprintf(str, sizeof str, "Cells0 [0-5],%4.2f,%4.2f,%4.2f,%4.2f,%4.2f,%4.2f,\n",
+	input.bms0data.cellVoltage[0],
+	input.bms0data.cellVoltage[1],
+	input.bms0data.cellVoltage[2],
+	input.bms0data.cellVoltage[3],
+	input.bms0data.cellVoltage[4],
+	input.bms0data.cellVoltage[5]
+	);
+	f_puts(str, &runtime::usbmsc->file);
+	f_sync(&runtime::usbmsc->file);
+
+	//Write cell voltages (battery 1) to log file
+	rpl_snprintf(str, sizeof str, "Cells1 [0-5],%4.2f,%4.2f,%4.2f,%4.2f,%4.2f,%4.2f,\n",
+	input.bms1data.cellVoltage[0],
+	input.bms1data.cellVoltage[1],
+	input.bms1data.cellVoltage[2],
+	input.bms1data.cellVoltage[3],
+	input.bms1data.cellVoltage[4],
+	input.bms1data.cellVoltage[5]
+	);
+	f_puts(str, &runtime::usbmsc->file);
+	f_sync(&runtime::usbmsc->file);
+
+	//Write battery temperature to log file
+	rpl_snprintf(str, sizeof str, "BatteryTemps [0-1],%4.1f,%4.1f,\n",
+	input.bms0data.temperature, input.bms1data.temperature);
+
+	//f_puts("Sample,Time(s),Mode,Current(A),Battery0(V),Battery1(V),Temp0(C),Temp1(C),Power(W),Energy(J),DutyCycle,Velocity(ms),Distance(m),OP,SpdSmpls,\n", &runtime::usbmsc->file);
+	f_puts("Sample,Time(s),Mode,DutyCycle,SpdSmpls,Velocity(ms),Distance(m),OP,\n", &runtime::usbmsc->file);
+	f_sync(&runtime::usbmsc->file);
+}
+
+
 template <typename T>
 constexpr bool withinError(T const value, T const target, T const error) {
 	return (value < (target + (target * error))) && (value > (target - (target * error)));
@@ -55,9 +111,12 @@ program::Output program::Idle::update(Input const &input)
 program::Task *program::Idle::complete(Input const &input)
 {
 	if(runtime::usbmsc->isReady()) {
+		if(previousReadyState == false) {
+			previousReadyState = true;
+		}
 		//Button has just been pressed
 		if(previousOPState == false && input.opState == true) {
-			countdown = 5;
+			countdown = 2;
 			lastCount = xTaskGetTickCount();
 		}
 		//Button is released
@@ -85,8 +144,13 @@ program::Task *program::Idle::complete(Input const &input)
 		countdown = -1;
 	//If countdown has finished, move onto next state
 	if(countdown == 0) {
-		return new (pvPortMalloc(sizeof(Startup))) Startup(input);
+		#ifdef MANUAL_MODE
+			return new (pvPortMalloc(sizeof(Manual))) Manual(input);
+		#else
+			return new (pvPortMalloc(sizeof(Startup))) Startup(input);
+		#endif
 	}
+	else previousReadyState = false;
 	previousOPState = input.opState;
 	return nullptr;
 }
@@ -135,57 +199,7 @@ void program::Idle::displayUpdate(Display &disp)
 
 program::Startup::Startup(Input const &input) : Task(TaskIdentity::Startup)
 {
-	char str[196];
-	//Write settings to log file
-	rpl_snprintf(str, sizeof str, "SampleFrequency,%5.2f,\nMotorFrequency,%5.0f,\nStartRampTime,%4.1f,\nCoastRampTime,%4.1f,\n",
-		runtime::usbmsc->settings.sampleFrequency,
-		runtime::usbmsc->settings.motorFrequency,
-		runtime::usbmsc->settings.startupramptime,
-		runtime::usbmsc->settings.coastramptime
-		);
-	f_puts(str, &runtime::usbmsc->file);
-	f_sync(&runtime::usbmsc->file);
-	
-	rpl_snprintf(str, sizeof str, "CruiseMin(kmh-ms),%3.1f,%4.2f,\nCruiseMax(kmh-ms),%3.1f,%4.2f,\nWheelRadius,%.3f,\nMagnets,%u,\nSpeedBufferSize,%u,\n",
-		runtime::usbmsc->settings.cruiseMin, kmhToMs(runtime::usbmsc->settings.cruiseMin),
-		runtime::usbmsc->settings.cruiseMax, kmhToMs(runtime::usbmsc->settings.cruiseMax),
-		runtime::usbmsc->settings.wheelRadius,
-		runtime::usbmsc->settings.wheelSamplePoints,
-		runtime::usbmsc->settings.encoderBufferSize
-		);
-	f_puts(str, &runtime::usbmsc->file);
-	f_sync(&runtime::usbmsc->file);
-
-	//Write cell voltages (battery 0) to log file
-	rpl_snprintf(str, sizeof str, "Cells0 [0-5],%4.2f,%4.2f,%4.2f,%4.2f,%4.2f,%4.2f,\n",
-		input.bms0data.cellVoltage[0],
-		input.bms0data.cellVoltage[1],
-		input.bms0data.cellVoltage[2],
-		input.bms0data.cellVoltage[3],
-		input.bms0data.cellVoltage[4],
-		input.bms0data.cellVoltage[5]
-		);
-	f_puts(str, &runtime::usbmsc->file);
-	f_sync(&runtime::usbmsc->file);
-
-	//Write cell voltages (battery 1) to log file
-	rpl_snprintf(str, sizeof str, "Cells1 [0-5],%4.2f,%4.2f,%4.2f,%4.2f,%4.2f,%4.2f,\n",
-		input.bms1data.cellVoltage[0],
-		input.bms1data.cellVoltage[1],
-		input.bms1data.cellVoltage[2],
-		input.bms1data.cellVoltage[3],
-		input.bms1data.cellVoltage[4],
-		input.bms1data.cellVoltage[5]
-		);
-	f_puts(str, &runtime::usbmsc->file);
-	f_sync(&runtime::usbmsc->file);
-
-	//Write battery temperature to log file
-	rpl_snprintf(str, sizeof str, "BatteryTemps [0-1],%4.1f,%4.1f,\n",
-		input.bms0data.temperature, input.bms1data.temperature);
-
-	f_puts("Sample,Time(s),Mode,Current(A),Battery0(V),Battery1(V),Temp0(C),Temp1(C),Power(W),Energy(J),DutyCycle,Velocity(ms),Distance(m),OP,\n", &runtime::usbmsc->file);
-	f_sync(&runtime::usbmsc->file);
+	setup_log_file(input);
 
 	f.startup(0, 1, input.time, input.time + runtime::usbmsc->settings.startupramptime);
 	//Run 3 quick beeps when ramping (for whatever reason, for starting 4 sounds like 3)
@@ -269,7 +283,7 @@ program::CoastRamp::CoastRamp(Input const &input) : Task(TaskIdentity::CoastRamp
 			vTaskDelay(msToTicks(50));
 		}
 	});
-	f.startup(0, 1, input.time, input.time + config::run::coastramptime);
+	f.startup(0, 1, input.time, input.time + runtime::usbmsc->settings.coastramptime);
 }
 program::Output program::CoastRamp::update(Input const &input)
 {
@@ -308,7 +322,7 @@ program::Output program::OPCheck::update(Input const &input)
 	if(input.programstate == Input::State::Running) {
 		auto buzzerSequence = [](Buzzer &buz) {
 			buz.start();
-			vTaskDelay(msToTicks(500));
+			vTaskDelay(msToTicks(100));
 			buz.stop();
 			vTaskDelay(msToTicks(500));
 		};
@@ -331,9 +345,10 @@ program::Output program::OPCheck::update(Input const &input)
 		}
 	}
 	if((!input.opState) && ((input.time) - errorTime >= config::run::stoptimeout) && input.programstate == Input::State::Running) {
-		out.programstate = Input::State::Finished;
-		out.output[Output::Element::State] = true;
-		pm_changedProgramState = true;
+		//Take these out to allow driver a bit more control for now
+		//out.programstate = Input::State::Finished;
+		//out.output[Output::Element::State] = true;
+		//pm_changedProgramState = true;
 	}
 	previousOPState = input.opState;
 	return out;
@@ -370,4 +385,37 @@ void program::Finished::displayUpdate(Display &disp)
 		disp.topline.reset(new (pvPortMalloc(sizeof(DL_Finished))) DL_Finished(time, energy, distance));
 	if(disp.bottomline->id != DisplayLine::ID::Battery)
 		disp.bottomline.reset(new (pvPortMalloc(sizeof(DL_Battery))) DL_Battery);
+}
+
+program::Output program::Manual::update(Input const &input)
+{
+	Output out;
+	if(input.opState) {
+		out.motorDutyCycle = f.currentValue(input.time);
+	}
+	else {
+		f.startup(0.0f, 1.0f, input.time, input.time + runtime::usbmsc->settings.opramptime);
+		out.motorDutyCycle = 0;
+	}
+	out.output[Output::Element::MotorDutyCycle] = true;
+	return out;
+}
+
+program::Task* program::Manual::complete(Input const &input)
+{
+	return nullptr;
+}
+
+void program::Manual::displayUpdate(Display &disp)
+{
+	if(disp.topline->id != DisplayLine::ID::SpeedTime)
+		disp.topline.reset(new (pvPortMalloc(sizeof(DL_SpeedTime))) DL_SpeedTime);
+	if(disp.bottomline->id != DisplayLine::ID::MotorDistance)
+		disp.bottomline.reset(new (pvPortMalloc(sizeof(DL_MotorDistance))) DL_MotorDistance);
+}
+
+program::Manual::Manual(Input const &input) : Task(TaskIdentity::Manual)
+{
+	setup_log_file(input);
+	f.startup(0.0f, 1.0f, input.time, input.time + runtime::usbmsc->settings.opramptime);
 }

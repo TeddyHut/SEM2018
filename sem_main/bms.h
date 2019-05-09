@@ -53,6 +53,11 @@ public:
 	void set_refreshRate(size_t const ticks);
 
 	void setLEDState(bool const state);
+	void set_cutoff_current(float const current);
+	void set_cutoff_temperature(float const temperature);
+	void set_cutoff_voltage(float const voltage);
+	void set_maximum_voltage(float const voltage);
+	void set_consecutive_errors(unsigned int errors);
 
 	void init(SPIManager *const spiManager, uint8_t const pin, size_t const refreshRate = config::bms::refreshRate);
 private:
@@ -67,8 +72,8 @@ private:
 	//Being lazy and not using a mutex for this one
 	size_t refreshRate;
 	
-	uint8_t cmdOutbuf;
-	uint8_t cmdInbuf;
+	uint8_t cmdOutbuf[3];
+	uint8_t cmdInbuf[sizeof cmdOutbuf];
 
 	mutable SemaphoreHandle_t mtx_bmsdata;
 	Data bmsdata;

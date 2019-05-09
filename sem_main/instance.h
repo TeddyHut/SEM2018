@@ -11,7 +11,6 @@
 #include "lcd.h"
 #include "leds.h"
 #include "spimanager.h"
-#include "twimanager.h"
 #include "gpioinput.h"
 #include "usbmsc.h"
 

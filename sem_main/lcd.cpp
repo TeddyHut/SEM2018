@@ -81,7 +81,7 @@ void ViewerBoard::init()
 	usart_register_callback(&instance, writeComplete_callback, USART_CALLBACK_BUFFER_TRANSMITTED);
 	usart_enable_callback(&instance, USART_CALLBACK_BUFFER_TRANSMITTED);
 	usart_enable(&instance);
-
+	
 	alloc_buffer();
 
 	if((que_pendingBuffers = xQueueCreate(::config::viewerboard::pendingQueueSize, sizeof(Buffer_t *))) == NULL) {

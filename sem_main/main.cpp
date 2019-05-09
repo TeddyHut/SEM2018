@@ -17,7 +17,6 @@
 #include "dep_instance.h"
 #include "manualserial.h"
 #include "runmanagement.h"
-#include "emc1701.h"
 
 //"Beep beep" at startup
 void buzzerStartup(Buzzer &buz) {
@@ -128,15 +127,15 @@ int main(void)
 	outconfig.direction = PORT_PIN_DIR_OUTPUT;
 	//Motors
 	port_pin_set_config(config::motor::motor0_pin, &outconfig);
-	port_pin_set_config(config::motor::motor1_pin, &outconfig);
+	//port_pin_set_config(config::motor::motor1_pin, &outconfig);
 	port_pin_set_output_level(config::motor::motor0_pin, false);
-	port_pin_set_output_level(config::motor::motor1_pin, false);
+	//port_pin_set_output_level(config::motor::motor1_pin, false);
 
 	//Servos
-	port_pin_set_config(config::servopower::servo0_power_pin, &outconfig);
-	port_pin_set_config(config::servopower::servo1_power_pin, &outconfig);
-	port_pin_set_output_level(config::servopower::servo0_power_pin, false);
-	port_pin_set_output_level(config::servopower::servo1_power_pin, false);
+	//port_pin_set_config(config::servopower::servo0_power_pin, &outconfig);
+	//port_pin_set_config(config::servopower::servo1_power_pin, &outconfig);
+	//port_pin_set_output_level(config::servopower::servo0_power_pin, false);
+	//port_pin_set_output_level(config::servopower::servo1_power_pin, false);
 
 	//port_pin_set_output_level(config::servopower::servo1_power_pin, true);
 

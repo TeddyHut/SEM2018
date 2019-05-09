@@ -195,4 +195,3 @@ TimerEncoder<n, counter_t>::TimerEncoder(convert_t const convertfn) : convertfn(
 
 typedef TimerEncoder<0> Encoder0;
 typedef TimerEncoder<1> Encoder1;
-typedef TimerEncoder<2> Encoder2;

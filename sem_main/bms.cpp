@@ -32,7 +32,8 @@ namespace {
 		};
 	};
 	struct Instruction {
-		enum : uint8_t {
+		//enum : uint8_t { VassistX doesn't like that
+		enum {
 			Normal = 0,
 			ReceiveData,
 			FireRelay,
@@ -94,13 +95,83 @@ void BMS::set_refreshRate(size_t const ticks)
 
 void BMS::setLEDState(bool const state)
 {
-	cmdOutbuf = state ? Instruction::LEDOn : Instruction::LEDOff;
+	cmdOutbuf[0] = state ? Instruction::LEDOn : Instruction::LEDOff;
 	SPIManager::Job job;
-	job.inbuffer = &cmdInbuf;
-	job.outbuffer = &cmdOutbuf;
+	job.inbuffer = cmdInbuf;
+	job.outbuffer = cmdOutbuf;
 	job.sem_complete = NULL;
 	job.ss_pin = spi_pin;
 	job.len = 1;
+	spiManager->addJob(job);
+}
+
+void BMS::set_cutoff_current(float const current)
+{
+	cmdOutbuf[0] = Instruction::Set_CutoffCurrent;
+	cmdOutbuf[1] = static_cast<uint16_t>(current * 1000.0f) & 0xff;
+	cmdOutbuf[2] = (static_cast<uint16_t>(current * 1000.0f) & 0xff00) >> 8;
+	SPIManager::Job job;
+	job.inbuffer = cmdInbuf;
+	job.outbuffer = cmdOutbuf;
+	job.sem_complete = NULL;
+	job.ss_pin = spi_pin;
+	job.len = 3;
+	spiManager->addJob(job);
+}
+
+void BMS::set_cutoff_temperature(float const temperature)
+{
+	cmdOutbuf[0] = Instruction::Set_CutoffTemperature;
+	cmdOutbuf[1] = static_cast<uint16_t>(temperature * 100.0f) & 0xff;
+	cmdOutbuf[2] = (static_cast<uint16_t>(temperature * 100.0f) & 0xff00) >> 8;
+	SPIManager::Job job;
+	job.inbuffer = cmdInbuf;
+	job.outbuffer = cmdOutbuf;
+	job.sem_complete = NULL;
+	job.ss_pin = spi_pin;
+	job.len = 3;
+	spiManager->addJob(job);
+}
+
+void BMS::set_cutoff_voltage(float const voltage)
+{
+	cmdOutbuf[0] = Instruction::Set_CutoffVoltage;
+	cmdOutbuf[1] = static_cast<uint16_t>(voltage * 1000.0f) & 0xff;
+	cmdOutbuf[2] = (static_cast<uint16_t>(voltage * 1000.0f) & 0xff00) >> 8;
+	SPIManager::Job job;
+	job.inbuffer = cmdInbuf;
+	job.outbuffer = cmdOutbuf;
+	job.sem_complete = NULL;
+	job.ss_pin = spi_pin;
+	job.len = 3;
+	spiManager->addJob(job);
+}
+
+void BMS::set_maximum_voltage(float const voltage)
+{
+	cmdOutbuf[0] = Instruction::Set_MaximumVoltage;
+	cmdOutbuf[1] = static_cast<uint16_t>(voltage * 1000.0f) & 0xff;
+	cmdOutbuf[2] = (static_cast<uint16_t>(voltage * 1000.0f) & 0xff00) >> 8;
+	SPIManager::Job job;
+	job.inbuffer = cmdInbuf;
+	job.outbuffer = cmdOutbuf;
+	job.sem_complete = NULL;
+	job.ss_pin = spi_pin;
+	job.len = 3;
+	spiManager->addJob(job);
+}
+
+void BMS::set_consecutive_errors(unsigned int errors)
+{
+	cmdOutbuf[0] = Instruction::Set_ConsecutiveErrors;
+	cmdOutbuf[1] = static_cast<uint16_t>(errors) & 0xff;
+	cmdOutbuf[2] = (static_cast<uint16_t>(errors) & 0xff00) >> 8;
+	SPIManager::Job job;
+	job.inbuffer = cmdInbuf;
+	job.outbuffer = cmdOutbuf;
+	job.sem_complete = NULL;
+	job.ss_pin = spi_pin;
+	job.len = 3;
 	spiManager->addJob(job);
 }
 

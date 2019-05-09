@@ -121,7 +121,7 @@ void USBMSC::task_main()
 		}
 
 		//Read strings from settings file
-		constexpr size_t strlen = 16;
+		constexpr size_t strlen = 8;
 		char sampleFrequency[strlen];
 		char motorFrequency[strlen];
 		char startupramptime[strlen];
@@ -131,11 +131,16 @@ void USBMSC::task_main()
 		char wheelRadius[strlen];
 		char wheelSamplePoints[strlen];
 		char encoderBufferSize[strlen];
+		char opramptime[strlen];
+		char drivecurrent[strlen];
+		char coasttriggercycles[strlen];
+		char drivetriggercycles[strlen];
 
 		bool getserror = false;
 		for(auto str : {sampleFrequency, motorFrequency, startupramptime,
 				coastramptime, cruiseMin, cruiseMax,
-				wheelRadius, wheelSamplePoints, encoderBufferSize}) {
+				wheelRadius, wheelSamplePoints, encoderBufferSize,
+				opramptime, drivecurrent, coasttriggercycles, drivetriggercycles}) {
 			if(nullptr == f_gets(str, strlen, &settingsFile)) {
 				getserror = true;
 				break;
@@ -164,6 +169,10 @@ void USBMSC::task_main()
 		settings.wheelRadius = std::strtof(wheelRadius, nullptr);
 		settings.wheelSamplePoints = std::atoi(wheelSamplePoints);
 		settings.encoderBufferSize = std::atoi(encoderBufferSize);
+		settings.opramptime = std::strtof(opramptime, nullptr);
+		settings.drivecurrent = std::strtof(drivecurrent, nullptr);
+		settings.coasttriggercycles = std::atoi(coasttriggercycles);
+		settings.drivetriggercycles = std::atoi(drivetriggercycles);
 
 		//Keep attempting to open logNN files until we find a new one
 		for(unsigned int index = 0; true; index++) {
